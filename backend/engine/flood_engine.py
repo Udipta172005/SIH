@@ -298,6 +298,15 @@ class HydrodynamicFloodEngine:
                 "time_min": t,
                 "rain_intensity_mm_hr": hyetograph.get(t, 0.0),
                 "summary": {
+                    "peak_flood_depth_m": round(max(node_depths_history[n][t] for n in nodes), 2),
+                    "surface_ponding_m3": round(total_surf_vol, 1),
+                    "flooded_road_km": round(flooded_road_length_m / 1000.0, 2),
+                    "hazard_nodes": {
+                        "danger": danger_count,
+                        "critical": critical_count,
+                        "warning": warning_count,
+                        "total": danger_count + critical_count + warning_count
+                    },
                     "total_flooded_volume_m3": round(total_surf_vol, 1),
                     "flooded_road_length_km": round(flooded_road_length_m / 1000.0, 2),
                     "danger_nodes": danger_count,
@@ -313,6 +322,14 @@ class HydrodynamicFloodEngine:
         all_depths = [node_depths_history[n][t] for n in nodes for t in report_intervals]
         max_overall_depth = max(all_depths) if all_depths else 0.0
 
+        horizon_summaries = {str(f["time_min"]): f["summary"] for f in time_series_frames}
+        frames_by_horizon = {str(f["time_min"]): f for f in time_series_frames}
+
+        peak_frame = max(
+            time_series_frames,
+            key=lambda f: f["summary"]["total_flooded_volume_m3"]
+        ) if time_series_frames else None
+
         return {
             "scenario": {
                 "intensity_mm_hr": intensity_mm_hr,
@@ -322,15 +339,78 @@ class HydrodynamicFloodEngine:
             },
             "hyetograph": hyetograph,
             "time_steps_min": report_intervals,
+            "horizon_summaries": horizon_summaries,
+            "frames_by_horizon": frames_by_horizon,
             "frames": time_series_frames,
             "overall_summary": {
                 "max_peak_depth_m": round(max_overall_depth, 2),
-                "peak_time_min": max(
-                    time_series_frames,
-                    key=lambda f: f["summary"]["total_flooded_volume_m3"]
-                )["time_min"] if time_series_frames else 60
+                "peak_surface_ponding_m3": peak_frame["summary"]["surface_ponding_m3"] if peak_frame else 0.0,
+                "peak_time_min": peak_frame["time_min"] if peak_frame else 60
             }
         }
+
+    def run_recompute_simulation(
+        self,
+        precipitation_rate_mm_hr: Optional[float] = 35.0,
+        preset_id: Optional[str] = None,
+        active_pumps: Optional[List[Dict[str, Any]]] = None,
+        duration_hrs: Optional[float] = None,
+        pattern: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """
+        Executes discrete-time hydrodynamic surrogate recomputation across all 9 forecast horizons
+        (t+0m, +15m, +30m, +45m, +60m, +75m, +90m, +120m, +180m).
+        """
+        presets_map = {
+            "cloudburst-flash": {
+                "intensity_mm_hr": 80.0,
+                "duration_hrs": 1.5,
+                "pattern": "cloudburst"
+            },
+            "monsoon-surge": {
+                "intensity_mm_hr": 110.0,
+                "duration_hrs": 3.0,
+                "pattern": "monsoon_surge"
+            },
+            "extreme-100yr": {
+                "intensity_mm_hr": 140.0,
+                "duration_hrs": 2.5,
+                "pattern": "extreme_100yr"
+            },
+            "moderate-rain": {
+                "intensity_mm_hr": 35.0,
+                "duration_hrs": 2.0,
+                "pattern": "uniform"
+            }
+        }
+
+        intensity = 35.0
+        dur = 2.0
+        pat = "cloudburst"
+
+        if preset_id and preset_id in presets_map:
+            p_config = presets_map[preset_id]
+            intensity = p_config["intensity_mm_hr"]
+            dur = p_config["duration_hrs"]
+            pat = p_config["pattern"]
+
+        if precipitation_rate_mm_hr is not None:
+            intensity = float(precipitation_rate_mm_hr)
+        if duration_hrs is not None:
+            dur = float(duration_hrs)
+        if pattern is not None:
+            pat = pattern
+
+        res = self.run_simulation(
+            intensity_mm_hr=intensity,
+            duration_hrs=dur,
+            pattern=pat,
+            pumps=active_pumps
+        )
+        res["scenario"]["preset_id"] = preset_id
+        res["scenario"]["precipitation_rate_mm_hr"] = intensity
+        return res
+
 
     def get_hotspot_alerts(
         self,

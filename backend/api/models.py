@@ -51,3 +51,13 @@ class PresetScenario(BaseModel):
     pattern: str
     icon: str
     historical_reference: str
+
+
+class SimulationRecomputeRequest(BaseModel):
+    precipitation_rate_mm_hr: Optional[float] = Field(None, ge=0.0, le=250.0, description="Precipitation rate in mm/hr")
+    preset_id: Optional[str] = Field(None, description="Preset scenario ID (e.g. 'cloudburst-flash', 'monsoon-surge', 'extreme-100yr', 'moderate-rain')")
+    active_pumps: Optional[List[PumpConfig]] = Field(default_factory=list, description="Active mobile dewatering pumps")
+    duration_hrs: Optional[float] = Field(None, ge=0.5, le=12.0, description="Storm duration in hours")
+    pattern: Optional[str] = Field(None, description="Storm pattern override: 'uniform' | 'cloudburst' | 'monsoon_surge' | 'extreme_100yr'")
+
+

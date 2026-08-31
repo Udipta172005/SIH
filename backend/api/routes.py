@@ -6,6 +6,7 @@ from typing import Dict, List, Any, Optional
 from fastapi import APIRouter, HTTPException, Query
 from .models import (
     RainfallScenarioRequest,
+    SimulationRecomputeRequest,
     PumpDeploymentRequest,
     EvacuationRouteRequest,
     MitigationImpactResponse,
@@ -29,6 +30,27 @@ async def get_network_topology() -> Dict[str, Any]:
         raise HTTPException(status_code=500, detail=f"Failed to generate network topology: {str(e)}")
 
 
+@router.post("/simulation/recompute", summary="Recompute GNN Hydrodynamic Simulation across 9 Forecast Horizons")
+async def recompute_simulation(payload: SimulationRecomputeRequest) -> Dict[str, Any]:
+    """
+    Executes discrete-time hydrodynamic surrogate calculations across all 9 forecast horizons
+    (t+0m, +15m, +30m, +45m, +60m, +75m, +90m, +120m, +180m), returning structured summary metrics
+    (peak_flood_depth_m, surface_ponding_m3, flooded_road_km, hazard_nodes) and time series frames.
+    """
+    try:
+        pumps_list = [{"node_id": p.node_id, "capacity_m3s": p.capacity_m3s} for p in (payload.active_pumps or [])]
+        result = flood_engine.run_recompute_simulation(
+            precipitation_rate_mm_hr=payload.precipitation_rate_mm_hr,
+            preset_id=payload.preset_id,
+            active_pumps=pumps_list,
+            duration_hrs=payload.duration_hrs,
+            pattern=payload.pattern
+        )
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Hydrodynamic recomputation failed: {str(e)}")
+
+
 @router.post("/simulation/run", summary="Run Hydrodynamic Urban Flood Nowcast Simulation")
 async def run_simulation(payload: RainfallScenarioRequest) -> Dict[str, Any]:
     """
@@ -47,6 +69,7 @@ async def run_simulation(payload: RainfallScenarioRequest) -> Dict[str, Any]:
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Simulation failed: {str(e)}")
+
 
 
 @router.get("/alerts/hotspots", summary="Get Critical Choke Points & Flooded Road Corridors")

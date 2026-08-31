@@ -29,6 +29,25 @@ export async function runSimulation({ intensity_mm_hr = 65, duration_hrs = 2.0, 
   return response.json();
 }
 
+export async function recomputeSimulation({ precipitation_rate_mm_hr = 35, preset_id = null, active_pumps = [], pattern = null, duration_hrs = null }) {
+  const response = await fetch(`${API_BASE}/simulation/recompute`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      precipitation_rate_mm_hr: Number(precipitation_rate_mm_hr),
+      preset_id,
+      active_pumps,
+      pattern,
+      duration_hrs: duration_hrs ? Number(duration_hrs) : null
+    })
+  });
+  if (!response.ok) {
+    throw new Error(`Simulation recompute failed: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+
 export async function fetchHotspotAlerts(intensity = 65, pattern = 'cloudburst') {
   const response = await fetch(`${API_BASE}/alerts/hotspots?intensity_mm_hr=${intensity}&pattern=${pattern}`);
   if (!response.ok) {
