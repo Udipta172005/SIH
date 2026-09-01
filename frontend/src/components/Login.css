@@ -191,41 +191,8 @@
   box-shadow: 0 0 15px rgba(34, 211, 238, 0.15);
 }
 
-.signin-brackets::before,
-.signin-brackets::after {
-  content: '';
-  position: absolute;
-  top: 50%;
-  width: 8px;
-  height: 20px;
-  border: 1.5px solid #22d3ee;
-  opacity: 0;
-  transform: translateY(-50%);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  pointer-events: none;
-}
 
-.signin-brackets::before {
-  left: -4px;
-  border-right: none;
-  transform: translate(-10px, -50%);
-}
 
-.signin-brackets::after {
-  right: -4px;
-  border-left: none;
-  transform: translate(10px, -50%);
-}
-
-.signin-field:focus ~ .signin-brackets::before {
-  opacity: 1;
-  transform: translate(-12px, -50%);
-}
-
-.signin-field:focus ~ .signin-brackets::after {
-  opacity: 1;
-  transform: translate(12px, -50%);
-}
 
 .signin-submit {
   width: 100%;

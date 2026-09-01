@@ -97,7 +97,6 @@ export default function Login({ onLogin }: { onLogin?: () => void }) {
                 className="signin-field"
                 disabled={submitted}
               />
-              <div className="signin-brackets" />
             </div>
           </motion.div>
 
@@ -117,7 +116,6 @@ export default function Login({ onLogin }: { onLogin?: () => void }) {
                 className="signin-field"
                 disabled={submitted}
               />
-              <div className="signin-brackets" />
             </div>
           </motion.div>
 
