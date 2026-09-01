@@ -75,6 +75,7 @@ function App() {
             x: scaleLon(n.geometry.coordinates[0]),
             y: scaleLat(n.geometry.coordinates[1]),
             label: n.properties.node_id,
+            depth_m: 0.05,
             level: 'normal'
           }));
           setMapNodes(parsedNodes);
@@ -109,6 +110,100 @@ function App() {
       }
     }
     loadData();
+  }, []);
+
+  // Real-time WebSocket Telemetry Connection
+  useEffect(() => {
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let isMounted = true;
+
+    const connectWebSocket = () => {
+      try {
+        const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+        const host = (window.location.port === '5173' || window.location.port === '3000')
+          ? `${window.location.hostname}:8000`
+          : window.location.host;
+        const wsUrl = `${protocol}//${host}/api/v1/ws/telemetry`;
+
+        ws = new WebSocket(wsUrl);
+
+        ws.onopen = () => {
+          console.log('[AquaGNN WS] Connected to telemetry stream:', wsUrl);
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            const messages = Array.isArray(data) ? data : [data];
+
+            setMapNodes((prevNodes) => {
+              if (!prevNodes || prevNodes.length === 0) return prevNodes;
+              let hasChanged = false;
+
+              const nextNodes = prevNodes.map((node) => {
+                const update = messages.find((msg: any) => {
+                  const target = String(msg.node_id);
+                  const lbl = String(node.label || '');
+                  return (
+                    lbl === target ||
+                    lbl === `ND-${target.padStart(2, '0')}` ||
+                    lbl === `ND-${target}` ||
+                    lbl.replace(/^ND-0*/, '') === target.replace(/^ND-0*/, '')
+                  );
+                });
+
+                if (update && update.depth_m !== undefined) {
+                  hasChanged = true;
+                  const depth = typeof update.depth_m === 'number' ? update.depth_m : parseFloat(update.depth_m);
+                  let level: Severity | 'normal' = 'normal';
+                  if (depth >= 0.60) level = 'danger';
+                  else if (depth >= 0.30) level = 'critical';
+                  else if (depth >= 0.10) level = 'warning';
+
+                  return {
+                    ...node,
+                    depth_m: depth,
+                    level: level
+                  };
+                }
+                return node;
+              });
+
+              return hasChanged ? nextNodes : prevNodes;
+            });
+          } catch (err) {
+            console.warn('[AquaGNN WS] Error parsing telemetry payload:', err);
+          }
+        };
+
+        ws.onerror = (err) => {
+          console.warn('[AquaGNN WS] Telemetry WebSocket error:', err);
+        };
+
+        ws.onclose = () => {
+          if (isMounted) {
+            reconnectTimer = setTimeout(connectWebSocket, 3000);
+          }
+        };
+      } catch (err) {
+        console.warn('[AquaGNN WS] WebSocket initialization failure:', err);
+        if (isMounted) {
+          reconnectTimer = setTimeout(connectWebSocket, 5000);
+        }
+      }
+    };
+
+    connectWebSocket();
+
+    return () => {
+      isMounted = false;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      if (ws) {
+        ws.onclose = null;
+        ws.close();
+      }
+    };
   }, []);
 
   const [deployed, setDeployed] = useState<string[]>([]);
@@ -368,7 +463,8 @@ function App() {
               );
             })}
             {mapNodes.map((node) => {
-                const liveLevel = currentFrame?.nodes?.[node.label]?.status || node.level || 'normal';
+                const liveLevel = node.level || currentFrame?.nodes?.[node.label]?.status || 'normal';
+                const displayDepth = node.depth_m !== undefined ? node.depth_m : currentFrame?.nodes?.[node.label]?.depth_m;
                 return (
                 <g 
                   key={node.label} 
@@ -394,7 +490,7 @@ function App() {
                     >
                       <div className="node-tooltip">
                         <strong>{node.label}</strong>
-                        <span>{currentFrame?.nodes?.[node.label]?.depth_m !== undefined ? `${currentFrame.nodes[node.label].depth_m.toFixed(2)}m depth` : `${(Math.random() * 2 + 0.5).toFixed(1)}m depth`}</span>
+                        <span>{displayDepth !== undefined ? `${Number(displayDepth).toFixed(2)}m depth` : '0.00m depth'}</span>
                       </div>
                     </foreignObject>
                   )}

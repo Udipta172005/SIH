@@ -18,21 +18,50 @@ if _current_dir not in sys.path:
 if _parent_dir not in sys.path:
     sys.path.insert(0, _parent_dir)
 
+import asyncio
+from contextlib import asynccontextmanager
+
 try:
     from .api.routes import router as api_router
     from .api.db_routes import db_router
+    from .api.ws_telemetry import ws_router, telemetry_broadcaster
     from .database.seed import seed_database
 except (ImportError, ValueError):
     from backend.api.routes import router as api_router
     from backend.api.db_routes import db_router
+    from backend.api.ws_telemetry import ws_router, telemetry_broadcaster
     from backend.database.seed import seed_database
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """
+    FastAPI Lifespan context manager:
+    - Initializes database and demo data.
+    - Starts the background WebSocket telemetry broadcaster task.
+    - Gracefully stops the background task on application shutdown.
+    """
+    seed_database()
+    telemetry_task = asyncio.create_task(telemetry_broadcaster.start())
+    try:
+        yield
+    finally:
+        await telemetry_broadcaster.stop()
+        if not telemetry_task.done():
+            telemetry_task.cancel()
+            try:
+                await telemetry_task
+            except asyncio.CancelledError:
+                pass
+
 
 app = FastAPI(
     title="AquaGNN: AI-Driven Urban Flood Nowcasting System",
     description="Couples live/simulated rainfall nowcasts with urban spatial topology (DEM + stormwater drainage graph) to predict street-level flood depth over 1-3 hour forecast horizons.",
     version="1.0.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=lifespan
 )
 
 # Configure CORS
@@ -44,12 +73,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize database and seed demo data
-seed_database()
-
 # Register API Routers
 app.include_router(api_router)
 app.include_router(db_router)
+app.include_router(ws_router)
 
 # Mount frontend dist static files if built
 frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
