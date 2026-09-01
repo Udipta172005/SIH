@@ -10,12 +10,49 @@ from .models import (
     PumpDeploymentRequest,
     EvacuationRouteRequest,
     MitigationImpactResponse,
-    PresetScenario
+    PresetScenario,
+    TelemetryIngestRequest
 )
 from ..engine.graph_builder import topology_builder
 from ..engine.flood_engine import flood_engine
 
 router = APIRouter(prefix="/api/v1")
+
+# In-memory store for latest telemetry readings
+_latest_telemetry: Dict[str, Any] = {}
+
+
+@router.post("/telemetry/ingest", summary="Ingest Live IoT Sensor Telemetry Readings")
+async def ingest_telemetry(payload: TelemetryIngestRequest) -> Dict[str, Any]:
+    """
+    Receives live telemetry readings from the IoT sensor simulator fleet.
+    Stores the latest readings in memory for dashboard consumption.
+    """
+    try:
+        _latest_telemetry["precipitation_mm_hr"] = payload.precipitation_mm_hr
+        _latest_telemetry["cycle"] = payload.cycle
+        _latest_telemetry["node_count"] = len(payload.readings)
+        _latest_telemetry["readings"] = {
+            r.node_id: {"water_level_m": r.water_level_m, "timestamp": r.timestamp}
+            for r in payload.readings
+        }
+        return {
+            "status": "accepted",
+            "cycle": payload.cycle,
+            "nodes_ingested": len(payload.readings)
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Telemetry ingestion failed: {str(e)}")
+
+
+@router.get("/telemetry/latest", summary="Get Latest Ingested Telemetry Snapshot")
+async def get_latest_telemetry() -> Dict[str, Any]:
+    """
+    Returns the most recently ingested telemetry snapshot.
+    """
+    if not _latest_telemetry:
+        return {"status": "no_data", "message": "No telemetry ingested yet"}
+    return {"status": "ok", **_latest_telemetry}
 
 
 @router.get("/network/topology", summary="Get Spatial Drainage Network & Road Topology")

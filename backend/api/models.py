@@ -61,3 +61,13 @@ class SimulationRecomputeRequest(BaseModel):
     pattern: Optional[str] = Field(None, description="Storm pattern override: 'uniform' | 'cloudburst' | 'monsoon_surge' | 'extreme_100yr'")
 
 
+class TelemetryReading(BaseModel):
+    node_id: str = Field(..., description="Sensor node ID (e.g. 'ND-04')")
+    water_level_m: float = Field(..., ge=0.0, le=10.0, description="Current water depth in meters")
+    timestamp: str = Field(..., description="ISO 8601 timestamp of the reading")
+
+
+class TelemetryIngestRequest(BaseModel):
+    precipitation_mm_hr: float = Field(..., ge=0.0, le=250.0, description="Current precipitation rate in mm/hr")
+    readings: List[TelemetryReading] = Field(..., description="List of sensor readings from all monitored nodes")
+    cycle: int = Field(..., ge=1, description="Simulator cycle number")
