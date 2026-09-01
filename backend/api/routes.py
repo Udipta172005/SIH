@@ -16,6 +16,7 @@ from .models import (
 )
 from ..engine.graph_builder import topology_builder
 from ..engine.flood_engine import flood_engine
+from ..database.telemetry_store import save_telemetry_readings, get_telemetry_history
 
 router = APIRouter(prefix="/api/v1")
 
@@ -37,6 +38,14 @@ async def ingest_telemetry(payload: TelemetryIngestRequest) -> Dict[str, Any]:
             r.node_id: {"water_level_m": r.water_level_m, "timestamp": r.timestamp}
             for r in payload.readings
         }
+        
+        # Persist to SQLite history
+        readings_dict_list = [
+            {"node_id": r.node_id, "water_level_m": r.water_level_m, "timestamp": r.timestamp}
+            for r in payload.readings
+        ]
+        save_telemetry_readings(readings_dict_list, payload.precipitation_mm_hr)
+
         return {
             "status": "accepted",
             "cycle": payload.cycle,
@@ -54,6 +63,20 @@ async def get_latest_telemetry() -> Dict[str, Any]:
     if not _latest_telemetry:
         return {"status": "no_data", "message": "No telemetry ingested yet"}
     return {"status": "ok", **_latest_telemetry}
+
+
+@router.get("/telemetry/history/{node_id}", summary="Get Historical Telemetry for Node")
+async def get_node_telemetry_history(node_id: str, hours: float = 24.0) -> Dict[str, Any]:
+    """
+    Returns up to `hours` (default 24) of historical water depth data for a specific node.
+    """
+    try:
+        history = get_telemetry_history(node_id, hours)
+        if not history:
+            return {"status": "no_data", "node_id": node_id, "history": []}
+        return {"status": "ok", "node_id": node_id, "history": history}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch telemetry history: {str(e)}")
 
 
 @router.get("/network/topology", summary="Get Spatial Drainage Network & Road Topology")
