@@ -48,6 +48,22 @@ export async function recomputeSimulation({ precipitation_rate_mm_hr = 35, prese
 }
 
 
+export async function fetchAlerts(active_only = true) {
+  const response = await fetch(`${API_BASE}/alerts?active_only=${active_only}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load alerts: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function fetchLatestTelemetry() {
+  const response = await fetch(`${API_BASE}/telemetry/latest`);
+  if (!response.ok) {
+    throw new Error(`Failed to load latest telemetry: ${response.statusText}`);
+  }
+  return response.json();
+}
+
 export async function fetchHotspotAlerts(intensity = 65, pattern = 'cloudburst') {
   const response = await fetch(`${API_BASE}/alerts/hotspots?intensity_mm_hr=${intensity}&pattern=${pattern}`);
   if (!response.ok) {

@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import NetworkBackground from './components/NetworkBackground';
 import Login from './components/Login';
-import { recomputeSimulation, fetchHotspotAlerts } from './services/api';
+import { recomputeSimulation, fetchHotspotAlerts, fetchAlerts, fetchLatestTelemetry } from './services/api';
 
 type Severity = 'danger' | 'critical' | 'warning';
 type AlertItem = {
@@ -25,25 +25,6 @@ const presetMap: Record<string, { preset_id: string; pattern: string; defaultInt
   'Steady Rain': { preset_id: 'moderate-rain', pattern: 'uniform', defaultIntensity: 35 },
   'Moderate Steady': { preset_id: 'moderate-rain', pattern: 'uniform', defaultIntensity: 35 },
 };
-
-const alertsSeed: AlertItem[] = [
-  {
-    id: 'ND-11', name: 'Industrial Spur Junction', area: 'Freight Depot', depth: '3.14m', risk: '98 / 100',
-    volume: '10,851.2 m³', severity: 'danger', response: 'Immediate arterial closure & dispatch heavy dewatering pump unit', color: '#ef4444',
-  },
-  {
-    id: 'ND-12', name: 'South Canal Promenade', area: 'South District', depth: '2.62m', risk: '91 / 100',
-    volume: '6,420.8 m³', severity: 'danger', response: 'Deploy mobile pump team and route traffic to East Bypass', color: '#ef4444',
-  },
-  {
-    id: 'ND-08', name: 'Mission Creek Gate', area: 'Bayfront Works', depth: '1.84m', risk: '82 / 100',
-    volume: '4,290.5 m³', severity: 'critical', response: 'Open secondary sluice and stage a pump at the western gate', color: '#f59e0b',
-  },
-  {
-    id: 'ND-04', name: 'Civic Center Underpass', area: 'Central Core', depth: '0.94m', risk: '67 / 100',
-    volume: '2,010.4 m³', severity: 'warning', response: 'Monitor rise rate and prepare a single portable pump', color: '#fbbf24',
-  },
-];
 
 const mapNodes = [
   { x: 18, y: 72, label: 'ND-04', level: 'normal' },
@@ -78,7 +59,9 @@ function App() {
 
   const [activeTab, setActiveTab] = useState('Alerts');
   const [isPlaying, setIsPlaying] = useState(false);
-  const [alerts, setAlerts] = useState(alertsSeed);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+  const [telemetry, setTelemetry] = useState<any>(null);
+  const [telemetryTicker, setTelemetryTicker] = useState<string>('Live assimilation');
   const [deployed, setDeployed] = useState<string[]>([]);
   const [selectedNode, setSelectedNode] = useState('ND-11');
   const [showMobileNav, setShowMobileNav] = useState(false);
@@ -108,6 +91,74 @@ function App() {
     return () => clearInterval(timer);
   }, [isPlaying]);
 
+  // Fetch alerts from /api/v1/alerts
+  const loadAlerts = async () => {
+    try {
+      const data = await fetchAlerts(true);
+      const rawAlerts = data?.alerts || [];
+      const colorMap: Record<Severity, string> = {
+        danger: '#ef4444',
+        critical: '#f59e0b',
+        warning: '#fbbf24',
+      };
+      const formattedAlerts: AlertItem[] = rawAlerts.map((a: any) => {
+        const severity: Severity = (a.severity as Severity) || 'warning';
+        const parts = a.message.includes(':') ? a.message.split(':') : [a.node_id, a.message];
+        const name = parts[0].trim();
+        const rest = parts.slice(1).join(':').trim();
+        const responseParts = rest.includes('—') ? rest.split('—') : [rest, 'Deploy pump unit and monitor'];
+        const area = responseParts[0].trim();
+        const response = responseParts.length > 1 ? responseParts.slice(1).join('—').trim() : 'Monitor rise rate and prepare dewatering unit';
+
+        const depth = severity === 'danger' ? '>0.60m' : severity === 'critical' ? '0.30 - 0.60m' : '0.15 - 0.30m';
+        const risk = severity === 'danger' ? '96 / 100' : severity === 'critical' ? '82 / 100' : '65 / 100';
+        const volume = severity === 'danger' ? '8,420 m³' : severity === 'critical' ? '4,290 m³' : '2,010 m³';
+
+        return {
+          id: a.node_id || `ALT-${a.id}`,
+          name: name || a.node_id,
+          area: area || a.alert_type || 'Lowland Node',
+          depth,
+          risk,
+          volume,
+          severity,
+          response,
+          color: colorMap[severity] || '#fbbf24',
+        };
+      });
+      setAlerts(formattedAlerts);
+    } catch (err) {
+      console.error('Failed to fetch alerts from /api/v1/alerts:', err);
+    }
+  };
+
+  // Live Telemetry Polling (every 5 seconds)
+  useEffect(() => {
+    let isMounted = true;
+
+    const pollTelemetry = async () => {
+      try {
+        const data = await fetchLatestTelemetry();
+        if (!isMounted) return;
+        if (data && data.status === 'ok') {
+          setTelemetry(data);
+          if (data.cycle !== undefined) {
+            setTelemetryTicker(`Cycle #${data.cycle} Assimilated (${data.precipitation_mm_hr} mm/hr)`);
+          }
+        }
+      } catch (err) {
+        console.debug('Telemetry polling error:', err);
+      }
+    };
+
+    pollTelemetry();
+    const interval = setInterval(pollTelemetry, 5000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
   // Member 1 Hydrodynamic GNN Recomputation Handler
   const handleRunSimulation = async (customPumps = deployed) => {
     try {
@@ -129,9 +180,34 @@ function App() {
         setHorizon(sim.overall_summary.peak_time_min);
       }
 
-      const alertsData = await fetchHotspotAlerts(precipitation, pattern);
-      if (alertsData?.hotspots && alertsData.hotspots.length > 0) {
-        // Optionally sync hotspots if available
+      // Refresh hotspot alerts if available
+      try {
+        const alertsData = await fetchHotspotAlerts(precipitation, pattern);
+        if (alertsData?.hotspots && alertsData.hotspots.length > 0) {
+          const colorMap: Record<Severity, string> = {
+            danger: '#ef4444',
+            critical: '#f59e0b',
+            warning: '#fbbf24',
+          };
+          const hotspotAlertItems: AlertItem[] = alertsData.hotspots
+            .filter((h: any) => !customPumps.includes(h.node_id))
+            .map((h: any) => ({
+              id: h.node_id,
+              name: h.location_name || h.node_id,
+              area: h.critical_tag || 'Urban Conduit',
+              depth: `${h.peak_depth_m.toFixed(2)}m`,
+              risk: `${h.risk_score} / 100`,
+              volume: `${h.volume_m3.toLocaleString()} m³`,
+              severity: (h.severity as Severity) || 'warning',
+              response: h.action_required || 'Deploy pump team and route traffic',
+              color: colorMap[(h.severity as Severity)] || '#fbbf24',
+            }));
+          if (hotspotAlertItems.length > 0) {
+            setAlerts(hotspotAlertItems);
+          }
+        }
+      } catch (e) {
+        // Fallback: maintain loaded DB alerts
       }
     } catch (err) {
       console.error('Simulation recomputation error:', err);
@@ -140,8 +216,9 @@ function App() {
     }
   };
 
-  // Initial GNN recomputation load
+  // Initial load: Fetch /api/v1/alerts and initial simulation
   useEffect(() => {
+    loadAlerts();
     handleRunSimulation([]);
   }, []);
 
@@ -157,8 +234,31 @@ function App() {
     }
   };
 
+  const currentFrame = simulationData?.frames_by_horizon?.[String(horizon)] ||
+    simulationData?.frames?.find((f: any) => f.time_min === horizon) ||
+    simulationData?.frames?.[0];
+
   const currentSummary = simulationData?.horizon_summaries?.[String(horizon)] ||
-    simulationData?.frames_by_horizon?.[String(horizon)]?.summary;
+    simulationData?.frames_by_horizon?.[String(horizon)]?.summary ||
+    currentFrame?.summary;
+
+  const dynamicMapNodes = useMemo(() => {
+    return mapNodes.map((node) => {
+      let depth: number | undefined = undefined;
+      if (telemetry?.readings?.[node.label]?.water_level_m !== undefined) {
+        depth = telemetry.readings[node.label].water_level_m;
+      } else if (currentFrame?.nodes?.[node.label]?.depth_m !== undefined) {
+        depth = currentFrame.nodes[node.label].depth_m;
+      }
+
+      if (depth !== undefined) {
+        const level: 'normal' | 'warning' | 'critical' | 'danger' =
+          depth >= 0.6 ? 'danger' : depth >= 0.3 ? 'critical' : depth >= 0.15 ? 'warning' : 'normal';
+        return { ...node, level, depth };
+      }
+      return { ...node, depth: undefined };
+    });
+  }, [telemetry, currentFrame]);
 
   const surfaceVolume = useMemo(() => {
     if (currentSummary?.surface_ponding_m3 !== undefined) {
@@ -195,10 +295,10 @@ function App() {
     setScenario('Steady Rain');
     setPattern('uniform');
     setSelectedPresetId('moderate-rain');
-    setAlerts(alertsSeed);
     setDeployed([]);
     setSelectedNode('ND-11');
     setIsPlaying(false);
+    loadAlerts();
     handleRunSimulation([]);
   };
 
@@ -333,7 +433,7 @@ function App() {
                 </g>
               );
             })}
-            {mapNodes.map((node) => (
+            {dynamicMapNodes.map((node) => (
               <g 
                 key={node.label} 
                 className="node-group" 
@@ -358,7 +458,13 @@ function App() {
                   >
                     <div className="node-tooltip">
                       <strong>{node.label}</strong>
-                      <span>{currentFrame?.nodes?.[node.label]?.depth_m !== undefined ? `${currentFrame.nodes[node.label].depth_m.toFixed(2)}m depth` : `${(Math.random() * 2 + 0.5).toFixed(1)}m depth`}</span>
+                      <span>
+                        {node.depth !== undefined 
+                          ? `${node.depth.toFixed(2)}m depth` 
+                          : currentFrame?.nodes?.[node.label]?.depth_m !== undefined 
+                            ? `${currentFrame.nodes[node.label].depth_m.toFixed(2)}m depth` 
+                            : '0.00m depth'}
+                      </span>
                     </div>
                   </foreignObject>
                 )}
@@ -398,14 +504,18 @@ function App() {
       </section>
 
       <footer className="footer-bar">
-        <span><Activity size={13} /> Model status: <strong>Live assimilation</strong></span>
+        <span><Activity size={13} /> Model status: <strong>{telemetry ? `Live IoT Feed (${telemetry.node_count || 9} nodes)` : 'Live assimilation'}</strong></span>
         <div className="footer-ticker">
           <div className="ticker-scroll">
-            <span>[SYS] ND-11 assimilation complete</span>
-            <span className="text-amber-400">[WARN] Pressure spike detected at South Canal</span>
-            <span>[SYS] GNN weights updated</span>
-            <span>[OP] Mobile pump team dispatched to ND-12</span>
-            <span>[SYS] ND-11 assimilation complete</span>
+            <span>[SYS] {telemetryTicker}</span>
+            {telemetry?.readings?.['ND-11'] && (
+              <span className="text-red-400">[IOT] ND-11 depth: {telemetry.readings['ND-11'].water_level_m.toFixed(2)}m</span>
+            )}
+            {telemetry?.readings?.['ND-12'] && (
+              <span className="text-amber-400">[IOT] ND-12 depth: {telemetry.readings['ND-12'].water_level_m.toFixed(2)}m</span>
+            )}
+            <span>[GNN] Hydrodynamic state synchronized</span>
+            <span>[OP] Mobile pump teams active: {activePumps}</span>
           </div>
         </div>
         <span><Check size={13} /> Forecast confidence <strong className={isPlaying ? 'rolling-digits' : ''}>{isPlaying ? '99.9%' : '94.8%'}</strong></span>
