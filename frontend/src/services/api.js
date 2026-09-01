@@ -100,3 +100,16 @@ export async function fetchScenarioPresets() {
   }
   return response.json();
 }
+
+export async function applyScenario({ scenario_name }) {
+  const response = await fetch(`${API_BASE}/scenarios/apply`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scenario_name })
+  });
+  if (!response.ok) {
+    throw new Error(`Failed to apply scenario '${scenario_name}': ${response.statusText}`);
+  }
+  return response.json();
+}
+
