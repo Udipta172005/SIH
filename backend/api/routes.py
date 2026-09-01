@@ -90,7 +90,7 @@ async def recompute_simulation(payload: SimulationRecomputeRequest) -> Dict[str,
 
 
 @router.post("/simulation/run", summary="Run Hydrodynamic Urban Flood Nowcast Simulation")
-async def run_simulation(payload: RainfallScenarioRequest) -> Dict[str, Any]:
+async def run_simulation(payload: RainfallScenarioRequest, background_tasks: BackgroundTasks) -> Dict[str, Any]:
     """
     Executes a discrete-time hydrodynamic surrogate simulation coupling the specified
     rainfall hyetograph with the spatial drainage topology. Returns time-series predictions
@@ -104,9 +104,18 @@ async def run_simulation(payload: RainfallScenarioRequest) -> Dict[str, Any]:
             pattern=payload.pattern,
             pumps=pumps_list
         )
+        from ..engine.mitigation_engine import mitigation_engine as mit_engine
+        background_tasks.add_task(
+            mit_engine.evaluate_and_store_danger_alerts,
+            simulation_result=result,
+            depth_threshold_m=0.6,
+            intensity_mm_hr=payload.intensity_mm_hr,
+            pattern=payload.pattern
+        )
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Simulation failed: {str(e)}")
+
 
 
 
