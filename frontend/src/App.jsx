@@ -11,6 +11,7 @@ import NodeInspectorModal from './components/NodeInspectorModal';
 import {
   fetchTopology,
   runSimulation,
+  recomputeSimulation,
   fetchHotspotAlerts,
   deployPumpMitigation,
   computeSafeRoute,
@@ -101,11 +102,12 @@ export default function App() {
   const handleRunSimulation = async (customPumps = activePumps) => {
     try {
       setLoading(true);
-      const sim = await runSimulation({
-        intensity_mm_hr: intensity,
-        duration_hrs: duration,
+      const sim = await recomputeSimulation({
+        precipitation_rate_mm_hr: intensity,
+        preset_id: selectedPresetId,
+        active_pumps: customPumps,
         pattern,
-        pumps: customPumps
+        duration_hrs: duration
       });
       setSimulationData(sim);
 
