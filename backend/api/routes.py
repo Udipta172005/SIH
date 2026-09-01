@@ -1,4 +1,4 @@
-"""
+﻿"""
 AquaGNN - FastAPI API Routes
 """
 
@@ -287,3 +287,43 @@ async def health_check() -> Dict[str, Any]:
         "graph_nodes": topology_builder.graph.number_of_nodes(),
         "graph_edges": topology_builder.graph.number_of_edges()
     }
+
+# ---------------------------------------------------------------
+# Task 5: Mitigation Engine - POST /api/v1/mitigation/deploy
+# ---------------------------------------------------------------
+
+@router.post("/mitigation/deploy", summary="Deploy Mitigation Pump with Negative Flow Offset & Clear Alert")
+async def deploy_mitigation_pump(payload: MitigationDeployRequest, background_tasks: BackgroundTasks) -> Dict[str, Any]:
+    """
+    Deploys a mobile dewatering pump to a target node:
+    1. Applies a negative flow offset (e.g. -2.5 m3/s) to that node.
+    2. Deletes/resolves the active Danger alert from the database for that node.
+    3. Triggers a GNN/hydrodynamic recomputation to show the water receding.
+    """
+    from ..engine.mitigation_engine import mitigation_engine as mit_engine
+    try:
+        result = mit_engine.deploy_pump(
+            node_id=payload.node_id,
+            flow_offset_m3s=payload.flow_offset_m3s,
+            intensity_mm_hr=payload.intensity_mm_hr or 75.0,
+            duration_hrs=payload.duration_hrs or 2.0,
+            pattern=payload.pattern or "cloudburst"
+        )
+        return result
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Mitigation deployment failed: {str(e)}")
+
+
+@router.get("/alerts/active", summary="Get Active Danger Alerts from Database")
+async def get_database_active_alerts() -> Dict[str, Any]:
+    """
+    Retrieves all active Danger alerts automatically generated when water depth exceeds 0.6m.
+    """
+    from ..database import get_active_alerts
+    try:
+        active_list = get_active_alerts()
+        return {"count": len(active_list), "alerts": active_list}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to query database alerts: {str(e)}")
