@@ -100,3 +100,11 @@ export async function fetchScenarioPresets() {
   }
   return response.json();
 }
+
+export async function fetchTelemetryHistory(node_id, hours = 24) {
+  const response = await fetch(`${API_BASE}/telemetry/history/${node_id}?hours=${hours}`);
+  if (!response.ok) {
+    throw new Error(`Failed to load telemetry history: ${response.statusText}`);
+  }
+  return response.json();
+}

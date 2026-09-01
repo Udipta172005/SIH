@@ -6,10 +6,16 @@ import {
   Navigation, Pause, Play, Radio, RotateCcw, Settings2, ShieldAlert,
   SlidersHorizontal, Waves, Zap, Fan, Volume2, VolumeX
 } from 'lucide-react';
+import { fetchTopology, recomputeSimulation, fetchHotspotAlerts, deployPumpMitigation, computeSafeRoute, fetchTelemetryHistory } from './services/api';
 import NetworkBackground from './components/NetworkBackground';
+import LoginBackground from './components/LoginBackground';
 import Login from './components/Login';
-import { recomputeSimulation, fetchHotspotAlerts, fetchTopology } from './services/api';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
+import { Line } from 'react-chartjs-2';
 
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
+
+// Use a deterministic seed for demo UI elements
 type Severity = 'danger' | 'critical' | 'warning';
 type AlertItem = {
   id: string; name: string; area: string; depth: string; risk: string;
@@ -427,6 +433,8 @@ function App() {
                 {alerts.length === 0 ? <EmptyState /> : alerts.map((alert) => <AlertCard key={alert.id} alert={alert} onDeploy={deployPump} />)}
               </div>
             </>
+          ) : activeTab === 'Curves' ? (
+            <CurvesTab selectedNode={selectedNode} />
           ) : (
             <TabEmpty tab={activeTab} deployed={deployed.length} />
           )}
@@ -547,6 +555,128 @@ function EmptyState() {
   return (
     <div className="empty-state">
       <Check size={24} /><strong>All choke points mitigated</strong><span>No active intervention required.</span>
+    </div>
+  );
+}
+
+function CurvesTab({ selectedNode }: { selectedNode: string }) {
+  const [history, setHistory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!selectedNode) return;
+    
+    let mounted = true;
+    setLoading(true);
+    setError(null);
+    
+    fetchTelemetryHistory(selectedNode, 24)
+      .then(res => {
+        if (mounted) {
+          if (res.status === 'ok' && res.history) {
+            setHistory(res.history);
+          } else {
+            setHistory([]);
+          }
+          setLoading(false);
+        }
+      })
+      .catch(err => {
+        if (mounted) {
+          setError(err.message);
+          setLoading(false);
+        }
+      });
+      
+    return () => { mounted = false; };
+  }, [selectedNode]);
+
+  if (!selectedNode) {
+    return <TabEmpty tab="Curves" deployed={0} />;
+  }
+
+  if (loading) {
+    return (
+      <div className="tab-empty">
+        <div className="animate-spin text-cyan-400"><RotateCcw size={25} /></div>
+        <strong>Loading telemetry history...</strong>
+        <span>Fetching 24-hour hydrograph for {selectedNode}</span>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="tab-empty text-red-400">
+        <div><ShieldAlert size={25} /></div>
+        <strong>Data Load Failed</strong>
+        <span>{error}</span>
+      </div>
+    );
+  }
+
+  if (history.length === 0) {
+    return (
+      <div className="tab-empty">
+        <div><BarChart3 size={25} /></div>
+        <strong>No Historical Data</strong>
+        <span>No telemetry records found for {selectedNode} in the last 24 hours.</span>
+      </div>
+    );
+  }
+
+  const chartData = {
+    labels: history.map(h => new Date(h.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })),
+    datasets: [
+      {
+        label: 'Water Depth (m)',
+        data: history.map(h => h.water_level_m),
+        borderColor: 'rgb(34, 211, 238)', // cyan-400
+        backgroundColor: 'rgba(34, 211, 238, 0.2)',
+        fill: true,
+        tension: 0.4,
+        pointRadius: 0,
+        pointHitRadius: 10,
+      }
+    ]
+  };
+
+  const chartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        labels: { color: '#94a3b8' }
+      },
+      tooltip: {
+        mode: 'index' as const,
+        intersect: false,
+      },
+    },
+    scales: {
+      x: {
+        grid: { color: 'rgba(255, 255, 255, 0.1)' },
+        ticks: { color: '#94a3b8', maxTicksLimit: 8 }
+      },
+      y: {
+        grid: { color: 'rgba(255, 255, 255, 0.1)' },
+        ticks: { color: '#94a3b8' },
+        title: { display: true, text: 'Water Depth (m)', color: '#94a3b8' },
+        suggestedMin: 0,
+      }
+    }
+  };
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="alerts-heading">
+        <div><span>24-HOUR HYDROGRAPH</span><small>Historical telemetry for {selectedNode}</small></div>
+        <b>{history.length} READINGS</b>
+      </div>
+      <div className="flex-1 min-h-0 relative p-4">
+        <Line data={chartData} options={chartOptions} />
+      </div>
     </div>
   );
 }

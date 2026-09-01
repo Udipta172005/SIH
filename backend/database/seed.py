@@ -136,6 +136,12 @@ def seed_database():
 
         db.commit()
         print(f"[seed] Seeded {len(SEED_NODES)} nodes, {len(SEED_EDGES)} edges, {len(SEED_ALERTS)} alerts.")
+        
+        # Seed telemetry history
+        from .telemetry_store import seed_telemetry_history
+        telemetry_count = seed_telemetry_history()
+        if telemetry_count > 0:
+            print(f"[seed] Seeded {telemetry_count} telemetry history records.")
 
     except Exception as e:
         db.rollback()
