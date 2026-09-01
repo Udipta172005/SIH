@@ -9,6 +9,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from .api.routes import router as api_router
+from .api.db_routes import db_router
+from .database.seed import seed_database
 
 app = FastAPI(
     title="AquaGNN: AI-Driven Urban Flood Nowcasting System",
@@ -27,8 +29,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register API Router
+# Initialize database and seed demo data
+seed_database()
+
+# Register API Routers
 app.include_router(api_router)
+app.include_router(db_router)
 
 # Mount frontend dist static files if built
 frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
