@@ -8,7 +8,7 @@ import {
 } from 'lucide-react';
 import NetworkBackground from './components/NetworkBackground';
 import Login from './components/Login';
-import { recomputeSimulation, fetchHotspotAlerts } from './services/api';
+import { recomputeSimulation, fetchHotspotAlerts, fetchTopology } from './services/api';
 
 type Severity = 'danger' | 'critical' | 'warning';
 type AlertItem = {
@@ -26,42 +26,11 @@ const presetMap: Record<string, { preset_id: string; pattern: string; defaultInt
   'Moderate Steady': { preset_id: 'moderate-rain', pattern: 'uniform', defaultIntensity: 35 },
 };
 
-const alertsSeed: AlertItem[] = [
-  {
-    id: 'ND-11', name: 'Industrial Spur Junction', area: 'Freight Depot', depth: '3.14m', risk: '98 / 100',
-    volume: '10,851.2 m³', severity: 'danger', response: 'Immediate arterial closure & dispatch heavy dewatering pump unit', color: '#ef4444',
-  },
-  {
-    id: 'ND-12', name: 'South Canal Promenade', area: 'South District', depth: '2.62m', risk: '91 / 100',
-    volume: '6,420.8 m³', severity: 'danger', response: 'Deploy mobile pump team and route traffic to East Bypass', color: '#ef4444',
-  },
-  {
-    id: 'ND-08', name: 'Mission Creek Gate', area: 'Bayfront Works', depth: '1.84m', risk: '82 / 100',
-    volume: '4,290.5 m³', severity: 'critical', response: 'Open secondary sluice and stage a pump at the western gate', color: '#f59e0b',
-  },
-  {
-    id: 'ND-04', name: 'Civic Center Underpass', area: 'Central Core', depth: '0.94m', risk: '67 / 100',
-    volume: '2,010.4 m³', severity: 'warning', response: 'Monitor rise rate and prepare a single portable pump', color: '#fbbf24',
-  },
-];
 
-const mapNodes = [
-  { x: 18, y: 72, label: 'ND-04', level: 'normal' },
-  { x: 29, y: 55, label: 'ND-08', level: 'critical' },
-  { x: 40, y: 39, label: 'ND-11', level: 'danger' },
-  { x: 52, y: 51, label: 'ND-12', level: 'danger' },
-  { x: 64, y: 30, label: 'ND-16', level: 'warning' },
-  { x: 74, y: 60, label: 'ND-19', level: 'normal' },
-  { x: 85, y: 42, label: 'ND-22', level: 'warning' },
-  { x: 56, y: 78, label: 'ND-24', level: 'normal' },
-  { x: 82, y: 80, label: 'ND-27', level: 'normal' },
-];
 
-const mapEdges: [number, number, number, number][] = [
-  [18, 72, 29, 55], [29, 55, 40, 39], [29, 55, 52, 51], [40, 39, 64, 30],
-  [40, 39, 52, 51], [52, 51, 74, 60], [52, 51, 56, 78], [64, 30, 85, 42],
-  [74, 60, 85, 42], [74, 60, 82, 80], [56, 78, 82, 80],
-];
+
+
+
 
 const formatMinutes = (value: number) => `T + ${String(value).padStart(3, '0')} MIN`;
 
@@ -78,7 +47,70 @@ function App() {
 
   const [activeTab, setActiveTab] = useState('Alerts');
   const [isPlaying, setIsPlaying] = useState(false);
-  const [alerts, setAlerts] = useState(alertsSeed);
+  
+  const [mapNodes, setMapNodes] = useState<any[]>([]);
+  const [mapEdges, setMapEdges] = useState<any[]>([]);
+  const [alerts, setAlerts] = useState<AlertItem[]>([]);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        // Fetch Topology
+        const topData = await fetchTopology();
+        const features = topData.features || [];
+        const nodes = features.filter(f => f.geometry.type === 'Point');
+        
+        if (nodes.length > 0) {
+          const lons = nodes.map(n => n.geometry.coordinates[0]);
+          const lats = nodes.map(n => n.geometry.coordinates[1]);
+          const minLon = Math.min(...lons);
+          const maxLon = Math.max(...lons);
+          const minLat = Math.min(...lats);
+          const maxLat = Math.max(...lats);
+
+          const scaleLon = (lon) => ((lon - minLon) / (maxLon - minLon)) * 90 + 5;
+          const scaleLat = (lat) => (1 - (lat - minLat) / (maxLat - minLat)) * 90 + 5; // Invert Y
+
+          const parsedNodes = nodes.map(n => ({
+            x: scaleLon(n.geometry.coordinates[0]),
+            y: scaleLat(n.geometry.coordinates[1]),
+            label: n.properties.node_id,
+            level: 'normal'
+          }));
+          setMapNodes(parsedNodes);
+
+          // We parse edges assuming the backend returns them, or we can just derive edges from nodes if not explicitly provided as LineStrings
+          const edges = features.filter(f => f.geometry.type === 'LineString');
+          const parsedEdges = edges.map(e => {
+            const start = e.geometry.coordinates[0];
+            const end = e.geometry.coordinates[e.geometry.coordinates.length - 1];
+            return [scaleLon(start[0]), scaleLat(start[1]), scaleLon(end[0]), scaleLat(end[1])];
+          });
+          setMapEdges(parsedEdges);
+        }
+
+        // Fetch Alerts
+        const alertData = await fetchHotspotAlerts(precipitation, pattern);
+        const mappedAlerts = (alertData.hotspots || []).map(a => ({
+            id: a.node_id,
+            name: a.location_name,
+            area: a.critical_tag,
+            depth: `${a.peak_depth_m}m`,
+            risk: `${a.risk_score} / 100`,
+            volume: `${a.peak_volume_m3} mA3`,
+            severity: a.severity,
+            response: a.recommended_action,
+            color: a.severity === 'danger' ? '#ef4444' : a.severity === 'critical' ? '#f59e0b' : '#fbbf24'
+        }));
+        setAlerts(mappedAlerts);
+
+      } catch (err) {
+        console.error("Failed to fetch initial data", err);
+      }
+    }
+    loadData();
+  }, []);
+
   const [deployed, setDeployed] = useState<string[]>([]);
   const [selectedNode, setSelectedNode] = useState('ND-11');
   const [showMobileNav, setShowMobileNav] = useState(false);
@@ -87,6 +119,8 @@ function App() {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [recentlyDeployed, setRecentlyDeployed] = useState<string | null>(null);
   const [viewBox, setViewBox] = useState('0 0 100 100');
+
+  const currentFrame = simulationData?.frames_by_horizon?.[String(horizon)];
 
   useEffect(() => {
     // Keep fixed viewBox to prevent clipping
@@ -325,7 +359,7 @@ function App() {
               const colorClass = speed === 3 ? 'stroke-cyan-400' : speed === 1.5 ? 'stroke-amber-400' : 'stroke-red-500';
               return (
                 <g key={i}>
-                  <line x1={x1} y1={y1} x2={x2} y2={y2} className={`conduit-line ${colorClass}`} />
+                  <line x1={x1} y1={y1} x2={x2} y2={y2} className="conduit-line" style={{ stroke: speed === 3 ? '#22d3ee' : speed === 1.5 ? '#fbbf24' : '#ef4444' }} />
                   <circle r="1.5" fill="#fff" opacity="0.8">
                     <animate attributeName="cx" values={`${x1};${x2}`} dur={`${speed}s`} repeatCount="indefinite" />
                     <animate attributeName="cy" values={`${y1};${y2}`} dur={`${speed}s`} repeatCount="indefinite" />
@@ -333,37 +367,39 @@ function App() {
                 </g>
               );
             })}
-            {mapNodes.map((node) => (
-              <g 
-                key={node.label} 
-                className="node-group" 
-                onClick={() => setSelectedNode(node.label)}
-                onMouseEnter={() => setHoveredNode(node.label)}
-                onMouseLeave={() => setHoveredNode(null)}
-              >
-                <circle cx={node.x} cy={node.y} r="8" className={`heatmap-bloom ${node.level}`} />
-                {node.level === 'danger' && <circle cx={node.x} cy={node.y} r="15" className="inundation-spread" />}
-                <circle cx={node.x} cy={node.y} r={node.label === selectedNode ? 3.3 : 2.2} className={`map-node ${node.level} ${node.label === selectedNode ? 'selected' : ''}`} />
-                <circle cx={node.x} cy={node.y} r={node.label === selectedNode ? 6 : 4.5} className={`node-pulse ${node.level}`} />
-                {recentlyDeployed === node.label && (
-                  <circle cx={node.x} cy={node.y} r="10" className="pump-ripple-anim" />
-                )}
-                <text x={node.x + 3.5} y={node.y - 3} className="node-label">{node.label}</text>
-                
-                {hoveredNode === node.label && (
-                  <foreignObject 
-                    x={node.x > 75 ? node.x - 44 : node.x + 4} 
-                    y={node.y < 20 ? node.y + 4 : node.y - 12} 
-                    width="40" height="20" style={{ pointerEvents: 'none' }}
-                  >
-                    <div className="node-tooltip">
-                      <strong>{node.label}</strong>
-                      <span>{currentFrame?.nodes?.[node.label]?.depth_m !== undefined ? `${currentFrame.nodes[node.label].depth_m.toFixed(2)}m depth` : `${(Math.random() * 2 + 0.5).toFixed(1)}m depth`}</span>
-                    </div>
-                  </foreignObject>
-                )}
-              </g>
-            ))}
+            {mapNodes.map((node) => {
+                const liveLevel = currentFrame?.nodes?.[node.label]?.status || node.level || 'normal';
+                return (
+                <g 
+                  key={node.label} 
+                  className="node-group" 
+                  onClick={() => setSelectedNode(node.label)}
+                  onMouseEnter={() => setHoveredNode(node.label)}
+                  onMouseLeave={() => setHoveredNode(null)}
+                >
+                  {liveLevel !== 'normal' && <circle cx={node.x} cy={node.y} r="8" className={`heatmap-bloom ${liveLevel}`} />}
+                  {liveLevel === 'danger' && <circle cx={node.x} cy={node.y} r="15" className="inundation-spread" />}
+                  <circle cx={node.x} cy={node.y} r={node.label === selectedNode ? 3.3 : 2.2} className={`map-node ${liveLevel} ${node.label === selectedNode ? 'selected' : ''}`} />
+                  <circle cx={node.x} cy={node.y} r={node.label === selectedNode ? 6 : 4.5} className={`node-pulse ${liveLevel}`} />
+                  {recentlyDeployed === node.label && (
+                    <circle cx={node.x} cy={node.y} r="10" className="pump-ripple-anim" />
+                  )}
+                  <text x={node.x + 3.5} y={node.y - 3} className="node-label">{node.label}</text>
+                  
+                  {hoveredNode === node.label && (
+                    <foreignObject 
+                      x={node.x > 75 ? node.x - 44 : node.x + 4} 
+                      y={node.y < 20 ? node.y + 4 : node.y - 12} 
+                      width="40" height="20" style={{ pointerEvents: 'none' }}
+                    >
+                      <div className="node-tooltip">
+                        <strong>{node.label}</strong>
+                        <span>{currentFrame?.nodes?.[node.label]?.depth_m !== undefined ? `${currentFrame.nodes[node.label].depth_m.toFixed(2)}m depth` : `${(Math.random() * 2 + 0.5).toFixed(1)}m depth`}</span>
+                      </div>
+                    </foreignObject>
+                  )}
+                </g>
+              )})}
           </motion.svg>
           <div className="map-locations">
             <span>INDUSTRIAL DISTRICT</span><span>CIVIC CENTER</span><span>SOUTH CANAL</span><span>BAYFRONT</span>

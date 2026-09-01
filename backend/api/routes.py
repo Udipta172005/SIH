@@ -1,9 +1,9 @@
-﻿"""
+"""
 AquaGNN - FastAPI API Routes
 """
 
 from typing import Dict, List, Any, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from .models import (
     RainfallScenarioRequest,
     SimulationRecomputeRequest,
@@ -11,7 +11,8 @@ from .models import (
     EvacuationRouteRequest,
     MitigationImpactResponse,
     PresetScenario,
-    TelemetryIngestRequest
+    TelemetryIngestRequest,
+    MitigationDeployRequest
 )
 from ..engine.graph_builder import topology_builder
 from ..engine.flood_engine import flood_engine
