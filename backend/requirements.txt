@@ -4,3 +4,4 @@ networkx>=3.3
 numpy>=2.0.0
 scipy>=1.14.0
 pydantic>=2.8.0
+sqlalchemy>=2.0.0

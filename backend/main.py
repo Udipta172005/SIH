@@ -4,11 +4,28 @@ Main FastAPI Application Entrypoint
 """
 
 import os
+import sys
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
-from .api.routes import router as api_router
+
+# Ensure both project root and backend dir are in sys.path
+_current_dir = os.path.dirname(os.path.abspath(__file__))
+_parent_dir = os.path.dirname(_current_dir)
+if _current_dir not in sys.path:
+    sys.path.insert(0, _current_dir)
+if _parent_dir not in sys.path:
+    sys.path.insert(0, _parent_dir)
+
+try:
+    from .api.routes import router as api_router
+    from .api.db_routes import db_router
+    from .database.seed import seed_database
+except (ImportError, ValueError):
+    from backend.api.routes import router as api_router
+    from backend.api.db_routes import db_router
+    from backend.database.seed import seed_database
 
 app = FastAPI(
     title="AquaGNN: AI-Driven Urban Flood Nowcasting System",
@@ -27,8 +44,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Register API Router
+# Initialize database and seed demo data
+seed_database()
+
+# Register API Routers
 app.include_router(api_router)
+app.include_router(db_router)
 
 # Mount frontend dist static files if built
 frontend_dist = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
