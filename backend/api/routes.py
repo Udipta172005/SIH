@@ -1,18 +1,22 @@
-"""
+﻿"""
 AquaGNN - FastAPI API Routes
 """
 
 from typing import Dict, List, Any, Optional
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from .models import (
     RainfallScenarioRequest,
     PumpDeploymentRequest,
+    MitigationDeployRequest,
     EvacuationRouteRequest,
     MitigationImpactResponse,
-    PresetScenario
+    PresetScenario,
+    AlertModel
 )
 from ..engine.graph_builder import topology_builder
 from ..engine.flood_engine import flood_engine
+from ..engine.mitigation_engine import mitigation_engine
+from ..database import get_active_alerts, get_all_alerts, clear_all_alerts
 
 router = APIRouter(prefix="/api/v1")
 
@@ -30,11 +34,12 @@ async def get_network_topology() -> Dict[str, Any]:
 
 
 @router.post("/simulation/run", summary="Run Hydrodynamic Urban Flood Nowcast Simulation")
-async def run_simulation(payload: RainfallScenarioRequest) -> Dict[str, Any]:
+async def run_simulation(payload: RainfallScenarioRequest, background_tasks: BackgroundTasks) -> Dict[str, Any]:
     """
     Executes a discrete-time hydrodynamic surrogate simulation coupling the specified
     rainfall hyetograph with the spatial drainage topology. Returns time-series predictions
-    across t+0m to t+180m horizons.
+    across t+0m to t+180m horizons. Automatically schedules background evaluation of danger
+    depths (>0.6m) and persists 'Danger' Alert objects.
     """
     try:
         pumps_list = [{"node_id": p.node_id, "capacity_m3s": p.capacity_m3s} for p in (payload.pumps or [])]
@@ -43,6 +48,14 @@ async def run_simulation(payload: RainfallScenarioRequest) -> Dict[str, Any]:
             duration_hrs=payload.duration_hrs,
             pattern=payload.pattern,
             pumps=pumps_list
+        )
+        # Background task: evaluate predictions and save danger alerts (>0.6m)
+        background_tasks.add_task(
+            mitigation_engine.evaluate_and_store_danger_alerts,
+            simulation_result=result,
+            depth_threshold_m=0.6,
+            intensity_mm_hr=payload.intensity_mm_hr,
+            pattern=payload.pattern
         )
         return result
     except Exception as e:
@@ -75,7 +88,45 @@ async def get_alerts_hotspots(
         raise HTTPException(status_code=500, detail=f"Failed to fetch hotspot alerts: {str(e)}")
 
 
-@router.post("/mitigation/deploy-pump", summary="Deploy Mobile Dewatering Pump Sandbox")
+@router.get("/alerts/active", summary="Get Active Danger Alerts from Database")
+async def get_database_active_alerts() -> Dict[str, Any]:
+    """
+    Retrieves all active 'Danger' alerts automatically generated when water depth exceeds 0.6m.
+    """
+    try:
+        active_list = get_active_alerts()
+        return {
+            "count": len(active_list),
+            "alerts": active_list
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to query database alerts: {str(e)}")
+
+
+@router.post("/mitigation/deploy", summary="Deploy Mitigation Pump with Negative Flow Offset & Clear Alert")
+async def deploy_mitigation_pump(payload: MitigationDeployRequest, background_tasks: BackgroundTasks) -> Dict[str, Any]:
+    """
+    Deploys a mobile dewatering pump to a target node:
+    1. Applies a negative flow offset (e.g. -2.5 m³/s) to that node.
+    2. Deletes/resolves the active Danger alert from the database for that node.
+    3. Triggers a GNN/hydrodynamic recomputation to show the water receding.
+    """
+    try:
+        result = mitigation_engine.deploy_pump(
+            node_id=payload.node_id,
+            flow_offset_m3s=payload.flow_offset_m3s,
+            intensity_mm_hr=payload.intensity_mm_hr or 75.0,
+            duration_hrs=payload.duration_hrs or 2.0,
+            pattern=payload.pattern or "cloudburst"
+        )
+        return result
+    except ValueError as ve:
+        raise HTTPException(status_code=404, detail=str(ve))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Mitigation deployment failed: {str(e)}")
+
+
+@router.post("/mitigation/deploy-pump", summary="Deploy Mobile Dewatering Pump Sandbox (Comparison)")
 async def deploy_pump_mitigation(payload: PumpDeploymentRequest) -> Dict[str, Any]:
     """
     Simulates deployment of a mobile high-capacity dewatering pump at a designated node.
@@ -97,7 +148,6 @@ async def deploy_pump_mitigation(payload: PumpDeploymentRequest) -> Dict[str, An
 
         # Mitigated run (with newly deployed pump added)
         mitigated_pumps_list = list(existing_pumps_list)
-        # Check if already in list, update or append
         found = False
         for p in mitigated_pumps_list:
             if p["node_id"] == payload.node_id:

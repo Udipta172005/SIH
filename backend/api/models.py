@@ -51,3 +51,25 @@ class PresetScenario(BaseModel):
     pattern: str
     icon: str
     historical_reference: str
+
+
+class MitigationDeployRequest(BaseModel):
+    node_id: str = Field(..., description="Target node ID for dewatering pump deployment")
+    flow_offset_m3s: float = Field(-2.5, description="Negative flow offset / extraction rate in m3/s (e.g. -2.5)")
+    intensity_mm_hr: Optional[float] = Field(75.0, ge=0.0, le=250.0, description="Storm intensity for recomputation")
+    duration_hrs: Optional[float] = Field(2.0, ge=0.5, le=12.0, description="Storm duration in hours")
+    pattern: Optional[str] = Field("cloudburst", description="Storm pattern for recomputation")
+
+
+class AlertModel(BaseModel):
+    id: str
+    node_id: str
+    location_name: Optional[str] = None
+    severity: str = "Danger"
+    depth_m: float
+    threshold_m: float = 0.6
+    status: str = "active"
+    action_required: Optional[str] = None
+    created_at: str
+    resolved_at: Optional[str] = None
+
