@@ -8,11 +8,22 @@ import {
 } from 'lucide-react';
 import NetworkBackground from './components/NetworkBackground';
 import Login from './components/Login';
+import { recomputeSimulation, fetchHotspotAlerts } from './services/api';
 
 type Severity = 'danger' | 'critical' | 'warning';
 type AlertItem = {
   id: string; name: string; area: string; depth: string; risk: string;
   volume: string; severity: Severity; response: string; color: string;
+};
+
+const presetMap: Record<string, { preset_id: string; pattern: string; defaultIntensity: number }> = {
+  'Flash Cloudburst': { preset_id: 'cloudburst-flash', pattern: 'cloudburst', defaultIntensity: 80 },
+  'Monsoon Atmospheric River': { preset_id: 'monsoon-surge', pattern: 'monsoon_surge', defaultIntensity: 110 },
+  'Monsoon Surge': { preset_id: 'monsoon-surge', pattern: 'monsoon_surge', defaultIntensity: 110 },
+  '100-Year Design Storm': { preset_id: 'extreme-100yr', pattern: 'extreme_100yr', defaultIntensity: 140 },
+  '100-Yr Extreme': { preset_id: 'extreme-100yr', pattern: 'extreme_100yr', defaultIntensity: 140 },
+  'Steady Rain': { preset_id: 'moderate-rain', pattern: 'uniform', defaultIntensity: 35 },
+  'Moderate Steady': { preset_id: 'moderate-rain', pattern: 'uniform', defaultIntensity: 35 },
 };
 
 const alertsSeed: AlertItem[] = [
@@ -60,6 +71,11 @@ function App() {
   const [precipitation, setPrecipitation] = useState(35);
   const [horizon, setHorizon] = useState(45);
   const [scenario, setScenario] = useState('Steady Rain');
+  const [pattern, setPattern] = useState('uniform');
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>('moderate-rain');
+  const [simulationData, setSimulationData] = useState<any>(null);
+  const [loading, setLoading] = useState(false);
+
   const [activeTab, setActiveTab] = useState('Alerts');
   const [isPlaying, setIsPlaying] = useState(false);
   const [alerts, setAlerts] = useState(alertsSeed);
@@ -77,27 +93,113 @@ function App() {
     setViewBox('0 0 100 100');
   }, [selectedNode]);
 
-  const surfaceVolume = useMemo(() => (10630.9 + precipitation * 3.2).toFixed(1), [precipitation]);
-  const floodedRoads = useMemo(() => (1.51 + precipitation / 130).toFixed(2), [precipitation]);
+  const timeSteps = [0, 15, 30, 45, 60, 75, 90, 120, 180];
+
+  // Scrubber playback timer loop
+  useEffect(() => {
+    if (!isPlaying) return;
+    const timer = setInterval(() => {
+      setHorizon((prev) => {
+        const idx = timeSteps.indexOf(prev);
+        if (idx === -1 || idx >= timeSteps.length - 1) return timeSteps[0];
+        return timeSteps[idx + 1];
+      });
+    }, 1500);
+    return () => clearInterval(timer);
+  }, [isPlaying]);
+
+  // Member 1 Hydrodynamic GNN Recomputation Handler
+  const handleRunSimulation = async (customPumps = deployed) => {
+    try {
+      setLoading(true);
+      const pumpsList = customPumps.map((nodeId) => ({
+        node_id: nodeId,
+        capacity_m3s: 1.5,
+      }));
+
+      const sim = await recomputeSimulation({
+        precipitation_rate_mm_hr: precipitation,
+        preset_id: selectedPresetId,
+        active_pumps: pumpsList,
+        pattern: pattern,
+        duration_hrs: 2.0,
+      });
+      setSimulationData(sim);
+      if (sim?.overall_summary?.peak_time_min !== undefined) {
+        setHorizon(sim.overall_summary.peak_time_min);
+      }
+
+      const alertsData = await fetchHotspotAlerts(precipitation, pattern);
+      if (alertsData?.hotspots && alertsData.hotspots.length > 0) {
+        // Optionally sync hotspots if available
+      }
+    } catch (err) {
+      console.error('Simulation recomputation error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Initial GNN recomputation load
+  useEffect(() => {
+    handleRunSimulation([]);
+  }, []);
+
+  const handleSelectPreset = (presetName: string) => {
+    setScenario(presetName);
+    const info = presetMap[presetName];
+    if (info) {
+      setPrecipitation(info.defaultIntensity);
+      setPattern(info.pattern);
+      setSelectedPresetId(info.preset_id);
+    } else {
+      setSelectedPresetId(null);
+    }
+  };
+
+  const currentSummary = simulationData?.horizon_summaries?.[String(horizon)] ||
+    simulationData?.frames_by_horizon?.[String(horizon)]?.summary;
+
+  const surfaceVolume = useMemo(() => {
+    if (currentSummary?.surface_ponding_m3 !== undefined) {
+      return currentSummary.surface_ponding_m3.toLocaleString();
+    }
+    return (10630.9 + precipitation * 3.2).toFixed(1);
+  }, [currentSummary, precipitation]);
+
+  const floodedRoads = useMemo(() => {
+    if (currentSummary?.flooded_road_km !== undefined) {
+      return currentSummary.flooded_road_km.toFixed(2);
+    }
+    return (1.51 + precipitation / 130).toFixed(2);
+  }, [currentSummary, precipitation]);
+
   const activePumps = deployed.length;
 
   const deployPump = (id: string) => {
     if (deployed.includes(id)) return;
-    setDeployed((current) => [...current, id]);
+    const newDeployed = [...deployed, id];
+    setDeployed(newDeployed);
     setAlerts((current) => current.filter((alert) => alert.id !== id));
     
     setRecentlyDeployed(id);
     setTimeout(() => setRecentlyDeployed(null), 2000);
+
+    // Trigger recompute with updated pump configuration
+    handleRunSimulation(newDeployed);
   };
 
   const resetSimulation = () => {
     setPrecipitation(35);
     setHorizon(45);
     setScenario('Steady Rain');
+    setPattern('uniform');
+    setSelectedPresetId('moderate-rain');
     setAlerts(alertsSeed);
     setDeployed([]);
     setSelectedNode('ND-11');
     setIsPlaying(false);
+    handleRunSimulation([]);
   };
 
   if (!isAuthenticated) return <Login onLogin={() => setIsAuthenticated(true)} />;
@@ -134,14 +236,14 @@ function App() {
         <div className={`topbar-controls ${showMobileNav ? 'is-open' : ''}`}>
           <div className="preset-label"><Zap size={14} /> Presets:</div>
           {(['Flash Cloudburst', 'Monsoon Atmospheric River', '100-Year Design Storm'] as const).map((preset, i) => (
-            <button key={preset} className="top-preset" onClick={() => setScenario(preset)}>
+            <button key={preset} className="top-preset" onClick={() => handleSelectPreset(preset)}>
               <span>{preset}</span><small>{i === 0 ? '80mm/h' : i === 1 ? '110mm/h' : '140mm/h'}</small>
             </button>
           ))}
-          <button className={`scenario-chip ${scenario === 'Steady Rain' ? 'selected' : ''}`} onClick={() => setScenario('Steady Rain')}>
+          <button className={`scenario-chip ${scenario === 'Steady Rain' ? 'selected' : ''}`} onClick={() => handleSelectPreset('Steady Rain')}>
             <span>Moderate Steady</span><small>35mm/h</small>
           </button>
-          <div className="engine-status"><span className="status-dot" /> GNN Engine <strong>Ready</strong></div>
+          <div className="engine-status"><span className="status-dot" /> GNN Engine <strong>{loading ? 'Recomputing...' : 'Ready'}</strong></div>
           <button className="reset-button" onClick={() => setSoundEnabled(!soundEnabled)}>
             {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
           </button>
@@ -153,16 +255,17 @@ function App() {
         <MetricCard 
           icon={<Droplets size={15} />} 
           label="Peak Flood Depth" 
-          value="1.45" unit="meters" 
-          note="Severe Inundation" accent="danger" badge="t+45m" 
+          value={currentSummary ? currentSummary.peak_flood_depth_m.toFixed(2) : "1.45"} unit="meters" 
+          note={currentSummary ? (currentSummary.peak_flood_depth_m >= 0.6 ? "Severe Inundation" : currentSummary.peak_flood_depth_m >= 0.3 ? "Critical Caution" : "Sub-Critical") : "Severe Inundation"} 
+          accent="danger" badge={`t+${horizon}m`} 
           animatedBar={true} 
         />
         <MetricCard icon={<Waves size={15} />} label="Surface Ponding" value={surfaceVolume} unit="m³" note="Accumulated surface overflow" accent="cyan" />
-        <MetricCard icon={<AlertTriangle size={15} />} label="Flooded Roads" value={floodedRoads} unit="km" note="0 choked conduits (≥90%)" accent="amber" />
+        <MetricCard icon={<AlertTriangle size={15} />} label="Flooded Roads" value={floodedRoads} unit="km" note={`${currentSummary?.choke_conduits ?? 0} choked conduits (≥90%)`} accent="amber" />
         <MetricCard 
           icon={<ShieldAlert size={15} />} 
-          label="Hazard Nodes" value={String(alerts.length)} unit="nodes" 
-          note="1 Danger  2 Critical" accent="danger" 
+          label="Hazard Nodes" value={currentSummary ? String(currentSummary.hazard_nodes.total) : String(alerts.length)} unit="nodes" 
+          note={currentSummary ? `${currentSummary.hazard_nodes.danger} Danger  ${currentSummary.hazard_nodes.critical} Critical` : "1 Danger  2 Critical"} accent="danger" 
           pulsingBadge={alerts.length > 0}
         >
           <div className="flex gap-1 mt-1">
@@ -181,13 +284,15 @@ function App() {
       <section className="control-deck glass-panel">
         <div className="precip-control">
           <div className="control-heading"><CloudRain size={16} /><span>Precipitation Rate</span><strong>{precipitation} mm/hr</strong></div>
-          <input aria-label="Precipitation rate" type="range" min="0" max="160" value={precipitation} onChange={(e) => setPrecipitation(Number(e.target.value))} />
+          <input aria-label="Precipitation rate" type="range" min="0" max="160" value={precipitation} onChange={(e) => { setPrecipitation(Number(e.target.value)); setSelectedPresetId(null); }} />
         </div>
         <div className="scenario-tabs">
           {(['Flash Cloudburst', 'Monsoon Surge', '100-Yr Extreme', 'Steady Rain'] as const).map((item) => (
-            <button key={item} className={scenario === item ? 'active' : ''} onClick={() => setScenario(item)}>{item}</button>
+            <button key={item} className={scenario === item ? 'active' : ''} onClick={() => handleSelectPreset(item)}>{item}</button>
           ))}
-          <button className="recompute" onClick={() => setIsPlaying(true)}><SlidersHorizontal size={14} /> Recompute GNN</button>
+          <button className="recompute" onClick={() => { setIsPlaying(true); handleRunSimulation(deployed); }} disabled={loading}>
+            <SlidersHorizontal size={14} /> {loading ? 'RECOMPUTING...' : 'Recompute GNN'}
+          </button>
         </div>
         <div className="horizon-control">
           <div className="horizon-heading"><span><Gauge size={14} /> Horizon Scrubber:</span><strong>{formatMinutes(horizon)}</strong></div>
@@ -199,6 +304,7 @@ function App() {
           <div className="scrubber-labels"><span>+0m</span><span>+45m</span><span>+90m</span><span>+180m</span></div>
         </div>
       </section>
+
 
       <section className="workspace">
         <div className="map-panel glass-panel">
@@ -252,7 +358,7 @@ function App() {
                   >
                     <div className="node-tooltip">
                       <strong>{node.label}</strong>
-                      <span>{(Math.random() * 2 + 0.5).toFixed(1)}m depth</span>
+                      <span>{currentFrame?.nodes?.[node.label]?.depth_m !== undefined ? `${currentFrame.nodes[node.label].depth_m.toFixed(2)}m depth` : `${(Math.random() * 2 + 0.5).toFixed(1)}m depth`}</span>
                     </div>
                   </foreignObject>
                 )}
