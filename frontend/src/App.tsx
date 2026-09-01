@@ -255,7 +255,6 @@ function App() {
     <main className="app-shell" style={{ background: `radial-gradient(circle at 52% 44%, rgba(${cR}, ${cG}, ${cB}, 1) 0%, rgba(${mR}, ${mG}, ${mB}, 1) 42%, rgba(${eR}, ${eG}, ${eB}, 1) 100%)` }}>
       <NetworkBackground />
       <div className="global-rain-overlay" style={{ opacity: precipitation / 160 }} />
-      {scenario === 'Flash Cloudburst' && <div className="lightning-flash-overlay" />}
       {isPlaying && <div className="gnn-pulse-overlay" />}
 
       <header className="topbar">
@@ -342,6 +341,7 @@ function App() {
 
       <section className="workspace">
         <div className="map-panel glass-panel">
+          {scenario === 'Flash Cloudburst' && <div className="lightning-flash-overlay" style={{ borderRadius: 'inherit' }} />}
           <div className="tide-mark" style={{ height: `${20 + (alerts.length * 15)}%` }} />
           <div className="map-toolbar">
             <div className="map-mode">
