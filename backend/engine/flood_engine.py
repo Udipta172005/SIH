@@ -11,6 +11,7 @@ import copy
 import networkx as nx
 import numpy as np
 from .graph_builder import UrbanTopologyBuilder, topology_builder
+from .gnn_inference import gnn_service
 
 
 class HydrodynamicFloodEngine:
@@ -407,6 +408,17 @@ class HydrodynamicFloodEngine:
             pattern=pat,
             pumps=active_pumps
         )
+        
+        # --- GNN INFERENCE INTEGRATION ---
+        # Run the actual GNN model predictions over the base frame
+        base_nodes = res["frames"][0]["nodes"] if res.get("frames") else {}
+        gnn_forecast = gnn_service.predict_horizons(
+            current_nodes=base_nodes,
+            precipitation_mm_hr=intensity,
+            pattern=pat
+        )
+        res["gnn_forecast"] = gnn_forecast
+        
         res["scenario"]["preset_id"] = preset_id
         res["scenario"]["precipitation_rate_mm_hr"] = intensity
         return res
