@@ -1,0 +1,330 @@
+.signin-shell {
+  position: relative;
+  min-height: 100vh;
+  width: 100%;
+  background: radial-gradient(circle at 50% 50%, #06152a 0%, #020712 100%);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: 'Inter', 'Segoe UI', sans-serif;
+  color: #e2e8f0;
+  animation: background-shift 20s ease-in-out infinite alternate;
+}
+
+.signin-shell::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 120%, rgba(34, 211, 238, 0.15), transparent 60%);
+  pointer-events: none;
+}
+
+/* Background layers */
+.signin-grid {
+  position: absolute;
+  inset: -50%;
+  background-image: 
+    linear-gradient(rgba(34, 211, 238, 0.08) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(34, 211, 238, 0.08) 1px, transparent 1px);
+  background-size: 50px 50px;
+  transform: perspective(600px) rotateX(60deg) translateY(-100px) translateZ(-200px);
+  animation: grid-draw 2s ease-out forwards, grid-breathe 15s ease-in-out infinite alternate 2s;
+  opacity: 0;
+}
+
+.signin-grid.collapsing {
+  animation: grid-collapse 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.signin-scanline {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  background: linear-gradient(
+    to bottom,
+    transparent 0%,
+    rgba(34, 211, 238, 0.05) 50%,
+    transparent 100%
+  );
+  background-size: 100% 8px;
+  opacity: 0.4;
+  pointer-events: none;
+  z-index: 10;
+  animation: scanline 8s linear infinite;
+}
+
+.signin-orbit {
+  position: absolute;
+  border-radius: 50%;
+  border: 1px solid rgba(34, 211, 238, 0.1);
+  pointer-events: none;
+}
+
+.signin-orbit-one {
+  width: 80vw;
+  height: 80vw;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: orbit-drift 40s linear infinite;
+}
+
+.signin-orbit-two {
+  width: 120vw;
+  height: 120vw;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  animation: orbit-drift 60s linear infinite reverse;
+}
+
+.signin-wave {
+  position: absolute;
+  border-radius: 40% 60% 70% 30% / 40% 50% 60% 50%;
+  filter: blur(60px);
+  opacity: 0.15;
+  pointer-events: none;
+}
+
+.signin-wave-one {
+  width: 50vw;
+  height: 50vw;
+  background: #0891b2;
+  top: -10vw;
+  right: -10vw;
+  animation: wave-drift 25s infinite alternate ease-in-out;
+}
+
+.signin-wave-two {
+  width: 60vw;
+  height: 60vw;
+  background: #0284c7;
+  bottom: -20vw;
+  left: -20vw;
+  animation: wave-drift 30s infinite alternate-reverse ease-in-out;
+}
+
+.signin-particles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.signin-particle {
+  position: absolute;
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: #22d3ee;
+  box-shadow: 0 0 8px 2px rgba(34, 211, 238, 0.6);
+  opacity: 0;
+}
+
+/* Hardcode a few particles */
+.signin-particle-1 { top: 20%; left: 15%; animation: particle-float 6s infinite 0s; }
+.signin-particle-2 { top: 75%; left: 25%; animation: particle-float 8s infinite 1s; }
+.signin-particle-3 { top: 40%; left: 80%; animation: particle-float 7s infinite 2s; }
+.signin-particle-4 { top: 85%; left: 70%; animation: particle-float 9s infinite 0.5s; }
+.signin-particle-5 { top: 10%; left: 65%; animation: particle-float 6.5s infinite 1.5s; }
+.signin-particle-6 { top: 55%; left: 10%; animation: particle-float 8.5s infinite 2.5s; }
+.signin-particle-7 { top: 30%; left: 45%; animation: particle-float 7.5s infinite 0.8s; }
+.signin-particle-8 { top: 60%; left: 90%; animation: particle-float 6.8s infinite 1.2s; }
+.signin-particle-9 { top: 90%; left: 40%; animation: particle-float 7.2s infinite 2.1s; }
+.signin-particle-10 { top: 15%; left: 85%; animation: particle-float 8.2s infinite 0.3s; }
+.signin-particle-11 { top: 45%; left: 20%; animation: particle-float 6.3s infinite 1.8s; }
+.signin-particle-12 { top: 80%; left: 15%; animation: particle-float 7.8s infinite 0.9s; }
+.signin-particle-13 { top: 25%; left: 95%; animation: particle-float 8.7s infinite 2.2s; }
+.signin-particle-14 { top: 65%; left: 55%; animation: particle-float 6.9s infinite 0.4s; }
+
+/* Card Elements */
+.signin-card {
+  position: relative;
+  z-index: 20;
+  width: 100%;
+  max-width: 440px;
+  background: rgba(11, 19, 36, 0.65);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(34, 211, 238, 0.2);
+  border-radius: 16px;
+  padding: 40px;
+  box-shadow: 
+    0 25px 50px -12px rgba(0, 0, 0, 0.7),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transform-style: preserve-3d;
+}
+
+.signin-field-wrapper {
+  position: relative;
+  margin-bottom: 24px;
+}
+
+.signin-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: #94a3b8;
+  margin-bottom: 8px;
+  letter-spacing: 0.05em;
+}
+
+.signin-field {
+  width: 100%;
+  background: rgba(4, 9, 20, 0.5);
+  border: 1px solid rgba(51, 65, 85, 0.6);
+  border-radius: 8px;
+  padding: 12px 16px;
+  color: #fff;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  outline: none;
+}
+
+.signin-field:focus {
+  background: rgba(8, 25, 45, 0.7);
+  border-color: #22d3ee;
+  box-shadow: 0 0 15px rgba(34, 211, 238, 0.15);
+}
+
+.signin-brackets::before,
+.signin-brackets::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  width: 8px;
+  height: 20px;
+  border: 1.5px solid #22d3ee;
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+
+.signin-brackets::before {
+  left: -4px;
+  border-right: none;
+  transform: translate(-10px, -50%);
+}
+
+.signin-brackets::after {
+  right: -4px;
+  border-left: none;
+  transform: translate(10px, -50%);
+}
+
+.signin-field:focus ~ .signin-brackets::before {
+  opacity: 1;
+  transform: translate(-12px, -50%);
+}
+
+.signin-field:focus ~ .signin-brackets::after {
+  opacity: 1;
+  transform: translate(12px, -50%);
+}
+
+.signin-submit {
+  width: 100%;
+  padding: 14px;
+  background: linear-gradient(90deg, #0891b2, #0284c7);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 13px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 15px rgba(8, 145, 178, 0.4);
+}
+
+.signin-submit:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(8, 145, 178, 0.6);
+  animation: button-glitch 0.2s ease;
+}
+
+.signin-submit:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.signin-submit:disabled {
+  background: #1e293b;
+  color: #475569;
+  box-shadow: none;
+  cursor: not-allowed;
+}
+
+/* Keyframes */
+@keyframes grid-draw {
+  from { opacity: 0; transform: perspective(600px) rotateX(60deg) translateY(-200px) translateZ(-200px); }
+  to { opacity: 0.3; transform: perspective(600px) rotateX(60deg) translateY(-100px) translateZ(-200px); }
+}
+
+@keyframes grid-breathe {
+  from { transform: perspective(600px) rotateX(60deg) translateY(-100px) translateZ(-200px); }
+  to { transform: perspective(600px) rotateX(58deg) translateY(-90px) translateZ(-200px); }
+}
+
+@keyframes scanline {
+  0% { transform: translateY(-100vh); }
+  100% { transform: translateY(100vh); }
+}
+
+@keyframes orbit-drift {
+  0% { transform: translate(-50%, -50%) rotate(0deg) scale(1); }
+  50% { transform: translate(-50%, -50%) rotate(180deg) scale(1.05); }
+  100% { transform: translate(-50%, -50%) rotate(360deg) scale(1); }
+}
+
+@keyframes particle-float {
+  0%, 100% { transform: translate3d(0, 10px, 0) scale(0.8); opacity: 0.18; }
+  50% { transform: translate3d(18px, -32px, 0) scale(1.3); opacity: 0.95; }
+}
+
+@keyframes wave-drift {
+  0% { transform: translate(0, 0) rotate(0deg); }
+  100% { transform: translate(-50px, 50px) rotate(15deg); }
+}
+
+@keyframes background-shift {
+  0% { background: radial-gradient(circle at 40% 40%, #06152a 0%, #020712 100%); }
+  100% { background: radial-gradient(circle at 60% 60%, #081b36 0%, #030a17 100%); }
+}
+
+@keyframes button-glitch {
+  0% { transform: translate(0); }
+  20% { transform: translate(-2px, 1px); }
+  40% { transform: translate(-1px, -1px); }
+  60% { transform: translate(2px, 1px); }
+  80% { transform: translate(1px, -1px); }
+  100% { transform: translate(0); }
+}
+
+@keyframes grid-collapse {
+  from { opacity: 0.3; transform: perspective(600px) rotateX(60deg) translateY(-100px) translateZ(-200px); }
+  to { opacity: 0; transform: perspective(600px) rotateX(90deg) translateY(0) translateZ(-500px); }
+}
+
+/* Reduced Motion */
+@media (prefers-reduced-motion: reduce) {
+  .signin-shell,
+  .signin-shell::after,
+  .signin-grid,
+  .signin-scanline,
+  .signin-orbit,
+  .signin-wave,
+  .signin-particle,
+  .signin-submit {
+    animation: none !important;
+    transition: none !important;
+  }
+}
