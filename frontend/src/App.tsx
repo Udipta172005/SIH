@@ -4,7 +4,7 @@ import {
   Activity, AlertTriangle, ArrowDownToLine, BarChart3, BatteryCharging,
   Check, ChevronDown, CloudRain, Droplets, Gauge, Layers3, MapPin, Menu,
   Navigation, Pause, Play, Radio, RotateCcw, Settings2, ShieldAlert,
-  SlidersHorizontal, Waves, Zap, Fan, Volume2, VolumeX, ArrowRight, CheckCircle2, ShieldCheck, Map
+  SlidersHorizontal, Waves, Zap, Fan, Volume2, VolumeX, ArrowRight, CheckCircle2, ShieldCheck, Map, LogOut
 } from 'lucide-react';
 import { fetchTopology, recomputeSimulation, fetchHotspotAlerts, deployPumpMitigation, computeSafeRoute, fetchTelemetryHistory, applyScenario } from './services/api';
 import NetworkBackground from './components/NetworkBackground';
@@ -464,7 +464,14 @@ function App() {
               <span>{soundEnabled ? 'RAIN ON' : 'RAIN OFF'}</span>
             </button>
           </nav>
-          <a href="#dashboard" className="preset-button font-mono text-[10px] tracking-[0.12em]">SIGN IN <ArrowRight className="inline size-3 ml-1" /></a>
+          <button 
+            onClick={() => setIsAuthenticated(false)} 
+            className="preset-button font-mono text-[10px] tracking-[0.12em] flex items-center gap-1.5 hover:!border-red-500/60 hover:!text-red-300 hover:!bg-red-950/40 transition-colors cursor-pointer"
+            title="Sign out to return to login screen"
+          >
+            <span>SIGN OUT</span>
+            <LogOut className="inline size-3 text-red-400" />
+          </button>
         </header>
 
         {/* Hero Content */}
@@ -539,6 +546,7 @@ function App() {
         <main className="app-shell" style={{ background: `radial-gradient(circle at 52% 44%, rgba(${cR}, ${cG}, ${cB}, 1) 0%, rgba(${mR}, ${mG}, ${mB}, 1) 42%, rgba(${eR}, ${eG}, ${eB}, 1) 100%)` }}>
       <NetworkBackground />
       <div className="global-rain-overlay" style={{ opacity: precipitation / 160 }} />
+      {scenario === 'Flash Cloudburst' && <div className="lightning-ambient-bg" />}
       {isPlaying && <div className="gnn-pulse-overlay" />}
 
       <header className="topbar">
@@ -631,7 +639,6 @@ function App() {
 
       <section className="workspace">
         <div className="map-panel glass-panel">
-          {scenario === 'Flash Cloudburst' && <div className="lightning-flash-overlay" style={{ borderRadius: 'inherit' }} />}
           <div className="tide-mark" style={{ height: `${20 + (alerts.length * 15)}%` }} />
           <div className="map-toolbar">
             <div className="map-mode">

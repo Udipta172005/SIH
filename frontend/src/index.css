@@ -248,19 +248,20 @@ button:active { transform: scale(.97); }
   100% { r: 25; opacity: 0; }
 }
 
-.lightning-flash-overlay {
+.lightning-ambient-bg {
   position: absolute;
   inset: 0;
-  background: white;
-  z-index: 50;
+  background: radial-gradient(circle at 50% 25%, rgba(186, 230, 253, 0.12), transparent 65%);
+  z-index: 0;
   pointer-events: none;
-  animation: lightning 5s infinite;
+  animation: ambient-lightning 8s infinite;
 }
-@keyframes lightning {
-  0%, 95%, 100% { opacity: 0; }
-  96% { opacity: 0.8; }
-  97% { opacity: 0; }
-  98% { opacity: 0.5; }
+@keyframes ambient-lightning {
+  0%, 94%, 100% { opacity: 0; }
+  95% { opacity: 0.22; }
+  96% { opacity: 0.04; }
+  97% { opacity: 0.30; }
+  98% { opacity: 0; }
 }
 
 .gnn-pulse-overlay {
