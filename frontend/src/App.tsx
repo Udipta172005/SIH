@@ -848,14 +848,36 @@ function AlertCard({ alert, onDeploy }: { alert: AlertItem; onDeploy: (id: strin
 }
 
 function HydroLegend() {
+  const [collapsed, setCollapsed] = useState(false);
+
   return (
-    <div className="hydro-legend">
-      <div className="legend-title"><Waves size={14} /> HYDRO HAZARD SCALE</div>
-      <LegendRow color="#10b981" label="Normal Flow" value="&lt; 0.10m" />
-      <LegendRow color="#facc15" label="Waterlogged Warning" value="0.10 - 0.30m" />
-      <LegendRow color="#f59e0b" label="Critical Surcharge" value="0.30 - 0.60m" />
-      <LegendRow color="#ef4444" label="Danger / Submerged" value="&gt; 0.60m" />
-      <div className="legend-flow"><span /> High Conduit Flow (≥85%)</div>
+    <div className={`hydro-legend ${collapsed ? 'is-collapsed' : ''}`}>
+      <div 
+        className="legend-title flex items-center justify-between cursor-pointer select-none" 
+        onClick={() => setCollapsed(!collapsed)}
+        title={collapsed ? "Click to expand hazard scale" : "Click to collapse hazard scale"}
+      >
+        <div className="flex items-center gap-2">
+          <Waves size={13} className="text-cyan-400" />
+          <span>HYDRO HAZARD SCALE</span>
+        </div>
+        <button 
+          type="button" 
+          className="text-slate-400 hover:text-cyan-300 ml-2 font-mono text-xs w-4 h-4 flex items-center justify-center rounded hover:bg-slate-800"
+          aria-label={collapsed ? "Expand legend" : "Collapse legend"}
+        >
+          {collapsed ? '+' : '−'}
+        </button>
+      </div>
+      {!collapsed && (
+        <>
+          <LegendRow color="#10b981" label="Normal Flow" value="&lt; 0.10m" />
+          <LegendRow color="#facc15" label="Waterlogged Warning" value="0.10 - 0.30m" />
+          <LegendRow color="#f59e0b" label="Critical Surcharge" value="0.30 - 0.60m" />
+          <LegendRow color="#ef4444" label="Danger / Submerged" value="&gt; 0.60m" />
+          <div className="legend-flow"><span /> High Conduit Flow (≥85%)</div>
+        </>
+      )}
     </div>
   );
 }
