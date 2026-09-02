@@ -12,6 +12,7 @@ import LoginBackground from './components/LoginBackground';
 import Login from './components/Login';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 import { Line } from 'react-chartjs-2';
+import { rainAudio } from './utils/rainAudio';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
@@ -248,6 +249,18 @@ function App() {
   const [recentlyDeployed, setRecentlyDeployed] = useState<string | null>(null);
   const [viewBox, setViewBox] = useState('0 0 100 100');
 
+  // Real-time Ambient Rain Sound Synthesizer
+  useEffect(() => {
+    if (soundEnabled) {
+      rainAudio.play(precipitation);
+    } else {
+      rainAudio.stop();
+    }
+    return () => {
+      rainAudio.stop();
+    };
+  }, [soundEnabled, precipitation]);
+
   const currentFrame = simulationData?.frames_by_horizon?.[String(horizon)];
 
   useEffect(() => {
@@ -439,10 +452,17 @@ function App() {
               <p className="font-mono text-[9px] tracking-[0.24em] text-muted-foreground">URBAN WATER INTELLIGENCE</p>
             </div>
           </div>
-          <nav aria-label="Primary navigation" className="hidden items-center gap-8 font-mono text-[10px] tracking-[0.14em] text-muted-foreground md:flex">
+          <nav aria-label="Primary navigation" className="hidden items-center gap-6 font-mono text-[10px] tracking-[0.14em] text-muted-foreground md:flex">
             <a href="#platform" className="transition-colors hover:text-cyan-400">PLATFORM</a>
-            
             <a href="#dashboard" className="transition-colors hover:text-cyan-400">COMMAND CENTER</a>
+            <button 
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[11px] font-mono transition-all ${soundEnabled ? 'border-cyan-500/70 text-cyan-300 bg-cyan-950/60 shadow-[0_0_10px_rgba(18,215,244,0.3)]' : 'border-border/60 hover:border-border text-slate-400 hover:text-slate-200'}`}
+              title={soundEnabled ? "Mute ambient rain audio" : "Enable realistic ambient rain audio"}
+            >
+              {soundEnabled ? <Volume2 size={13} className="text-cyan-400 animate-pulse" /> : <VolumeX size={13} />}
+              <span>{soundEnabled ? 'RAIN ON' : 'RAIN OFF'}</span>
+            </button>
           </nav>
           <a href="#dashboard" className="preset-button font-mono text-[10px] tracking-[0.12em]">SIGN IN <ArrowRight className="inline size-3 ml-1" /></a>
         </header>
@@ -541,8 +561,14 @@ function App() {
             <span>Moderate Steady</span><small>35mm/h</small>
           </button>
           <div className="engine-status"><span className="status-dot" /> GNN Engine <strong>{loading ? 'Recomputing...' : 'Ready'}</strong></div>
-          <button className="reset-button" onClick={() => setSoundEnabled(!soundEnabled)}>
-            {soundEnabled ? <Volume2 size={14} /> : <VolumeX size={14} />}
+          <button 
+            className={`reset-button ${soundEnabled ? '!border-cyan-500/70 !text-cyan-300 !bg-cyan-950/60 shadow-[0_0_12px_rgba(18,215,244,0.35)]' : ''}`} 
+            onClick={() => setSoundEnabled(!soundEnabled)}
+            title={soundEnabled ? "Mute ambient rain audio" : "Enable realistic ambient rain audio"}
+            aria-label="Toggle ambient rain audio"
+          >
+            {soundEnabled ? <Volume2 size={14} className="text-cyan-400 animate-pulse" /> : <VolumeX size={14} />}
+            <span className="text-[11px] font-mono">{soundEnabled ? 'RAIN ON' : 'RAIN OFF'}</span>
           </button>
           <button className="reset-button" onClick={resetSimulation}><RotateCcw size={14} /> Reset</button>
         </div>
