@@ -6,7 +6,7 @@ import {
   Navigation, Pause, Play, Radio, RotateCcw, Settings2, ShieldAlert,
   SlidersHorizontal, Waves, Zap, Fan, Volume2, VolumeX
 } from 'lucide-react';
-import { fetchTopology, recomputeSimulation, fetchHotspotAlerts, deployPumpMitigation, computeSafeRoute, fetchTelemetryHistory } from './services/api';
+import { fetchTopology, recomputeSimulation, fetchHotspotAlerts, deployPumpMitigation, computeSafeRoute, fetchTelemetryHistory, applyScenario } from './services/api';
 import NetworkBackground from './components/NetworkBackground';
 import LoginBackground from './components/LoginBackground';
 import Login from './components/Login';
@@ -14,6 +14,7 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 import { Line } from 'react-chartjs-2';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
+
 
 // Use a deterministic seed for demo UI elements
 type Severity = 'danger' | 'critical' | 'warning';
@@ -149,7 +150,12 @@ function App() {
   }, [isPlaying]);
 
   // Member 1 Hydrodynamic GNN Recomputation Handler
-  const handleRunSimulation = async (customPumps = deployed) => {
+  const handleRunSimulation = async (
+    customPumps = deployed,
+    overridePrecip?: number,
+    overridePresetId?: string | null,
+    overridePattern?: string
+  ) => {
     try {
       setLoading(true);
       const pumpsList = customPumps.map((nodeId) => ({
@@ -157,11 +163,15 @@ function App() {
         capacity_m3s: 1.5,
       }));
 
+      const activePrecip = overridePrecip !== undefined ? overridePrecip : precipitation;
+      const activePresetId = overridePresetId !== undefined ? overridePresetId : selectedPresetId;
+      const activePattern = overridePattern !== undefined ? overridePattern : pattern;
+
       const sim = await recomputeSimulation({
-        precipitation_rate_mm_hr: precipitation,
-        preset_id: selectedPresetId,
+        precipitation_rate_mm_hr: activePrecip,
+        preset_id: activePresetId,
         active_pumps: pumpsList,
-        pattern: pattern,
+        pattern: activePattern,
         duration_hrs: 2.0,
       });
       setSimulationData(sim);
@@ -169,7 +179,7 @@ function App() {
         setHorizon(sim.overall_summary.peak_time_min);
       }
 
-      const alertsData = await fetchHotspotAlerts(precipitation, pattern);
+      const alertsData = await fetchHotspotAlerts(activePrecip, activePattern);
       if (alertsData?.hotspots && alertsData.hotspots.length > 0) {
         // Optionally sync hotspots if available
       }
@@ -185,17 +195,44 @@ function App() {
     handleRunSimulation([]);
   }, []);
 
-  const handleSelectPreset = (presetName: string) => {
-    setScenario(presetName);
-    const info = presetMap[presetName];
-    if (info) {
-      setPrecipitation(info.defaultIntensity);
-      setPattern(info.pattern);
-      setSelectedPresetId(info.preset_id);
-    } else {
-      setSelectedPresetId(null);
+  const handleSelectPreset = async (presetName: string) => {
+    try {
+      setScenario(presetName);
+
+      // 1. Call backend /scenarios/apply endpoint
+      let newIntensity = 35;
+      let newPattern = 'uniform';
+      let newPresetId = 'moderate-rain';
+
+      try {
+        const res = await applyScenario({ scenario_name: presetName });
+        if (res && res.precipitation_intensity_mm_hr !== undefined) {
+          newIntensity = res.precipitation_intensity_mm_hr;
+          newPattern = res.pattern || 'uniform';
+          newPresetId = res.preset_id || 'moderate-rain';
+        }
+      } catch (apiErr) {
+        console.warn('Backend scenario apply failed, falling back to local map', apiErr);
+        const info = presetMap[presetName];
+        if (info) {
+          newIntensity = info.defaultIntensity;
+          newPattern = info.pattern;
+          newPresetId = info.preset_id;
+        }
+      }
+
+      // 2. Update global precipitation slider and state in React
+      setPrecipitation(newIntensity);
+      setPattern(newPattern);
+      setSelectedPresetId(newPresetId);
+
+      // 3. Automatically trigger fresh GNN Recompute
+      await handleRunSimulation(deployed, newIntensity, newPresetId, newPattern);
+    } catch (err) {
+      console.error('Failed to apply preset scenario:', err);
     }
   };
+
 
   const currentSummary = simulationData?.horizon_summaries?.[String(horizon)] ||
     simulationData?.frames_by_horizon?.[String(horizon)]?.summary;
@@ -275,11 +312,11 @@ function App() {
         <div className={`topbar-controls ${showMobileNav ? 'is-open' : ''}`}>
           <div className="preset-label"><Zap size={14} /> Presets:</div>
           {(['Flash Cloudburst', 'Monsoon Atmospheric River', '100-Year Design Storm'] as const).map((preset, i) => (
-            <button key={preset} className="top-preset" onClick={() => handleSelectPreset(preset)}>
+            <button key={preset} className={`top-preset ${scenario === preset ? 'active' : ''}`} onClick={() => handleSelectPreset(preset)}>
               <span>{preset}</span><small>{i === 0 ? '80mm/h' : i === 1 ? '110mm/h' : '140mm/h'}</small>
             </button>
           ))}
-          <button className={`scenario-chip ${scenario === 'Steady Rain' ? 'selected' : ''}`} onClick={() => handleSelectPreset('Steady Rain')}>
+          <button className={`scenario-chip ${scenario === 'Steady Rain' || scenario === 'Moderate Steady' ? 'selected' : ''}`} onClick={() => handleSelectPreset('Steady Rain')}>
             <span>Moderate Steady</span><small>35mm/h</small>
           </button>
           <div className="engine-status"><span className="status-dot" /> GNN Engine <strong>{loading ? 'Recomputing...' : 'Ready'}</strong></div>

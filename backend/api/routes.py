@@ -12,7 +12,8 @@ from .models import (
     MitigationImpactResponse,
     PresetScenario,
     TelemetryIngestRequest,
-    MitigationDeployRequest
+    MitigationDeployRequest,
+    ScenarioApplyRequest
 )
 from ..engine.graph_builder import topology_builder
 from ..engine.flood_engine import flood_engine
@@ -309,6 +310,30 @@ async def get_scenario_presets() -> List[Dict[str, Any]]:
             "historical_reference": "Typical Autumn Frontal System"
         }
     ]
+
+
+@router.post("/scenarios/apply", summary="Apply Weather Preset Scenario to Flood Engine State")
+async def apply_scenario(payload: ScenarioApplyRequest) -> Dict[str, Any]:
+    """
+    Applies a weather preset scenario to the global flood engine state,
+    updating the precipitation intensity (e.g. 140 mm/hr for 100-Year Storm).
+    """
+    try:
+        updated_scenario = flood_engine.apply_scenario(payload.scenario_name)
+        return {
+            "status": "success",
+            "scenario": updated_scenario,
+            "scenario_name": updated_scenario["scenario_name"],
+            "preset_id": updated_scenario["preset_id"],
+            "precipitation_intensity_mm_hr": updated_scenario["intensity_mm_hr"],
+            "intensity_mm_hr": updated_scenario["intensity_mm_hr"],
+            "duration_hrs": updated_scenario["duration_hrs"],
+            "pattern": updated_scenario["pattern"],
+            "risk_level": updated_scenario.get("risk_level", "Medium"),
+            "message": f"Scenario '{updated_scenario['scenario_name']}' successfully applied with precipitation intensity {updated_scenario['intensity_mm_hr']} mm/hr."
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to apply scenario: {str(e)}")
 
 
 @router.get("/health", summary="System Health & Status")

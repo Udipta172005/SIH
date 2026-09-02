@@ -1,4 +1,4 @@
-﻿"""
+"""
 AquaGNN - Pydantic Data Models & Schemas
 """
 
@@ -92,3 +92,8 @@ class AlertModel(BaseModel):
     action_required: Optional[str] = None
     created_at: str
     resolved_at: Optional[str] = None
+
+
+class ScenarioApplyRequest(BaseModel):
+    scenario_name: str = Field(..., description="Scenario preset name or ID (e.g. 'Flash Cloudburst', '100-Year Design Storm', '100-Year Storm', 'Monsoon Atmospheric River', 'Moderate Steady')")
+

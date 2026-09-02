@@ -23,6 +23,15 @@ class HydrodynamicFloodEngine:
     def __init__(self, builder: Optional[UrbanTopologyBuilder] = None):
         self.builder = builder or topology_builder
         self.base_graph: nx.DiGraph = self.builder.graph
+        self.current_scenario: Dict[str, Any] = {
+            "preset_id": "moderate-rain",
+            "scenario_name": "Moderate Steady Rainfall",
+            "intensity_mm_hr": 35.0,
+            "duration_hrs": 2.0,
+            "pattern": "uniform",
+            "risk_level": "Low"
+        }
+
 
     def generate_rainfall_hyetograph(
         self,
@@ -422,6 +431,71 @@ class HydrodynamicFloodEngine:
         res["scenario"]["preset_id"] = preset_id
         res["scenario"]["precipitation_rate_mm_hr"] = intensity
         return res
+
+    def apply_scenario(self, scenario_name: str) -> Dict[str, Any]:
+        """
+        Updates the global flood_engine state with the scenario's precipitation intensity,
+        duration, and storm pattern based on scenario name or preset id.
+        """
+        norm_name = scenario_name.strip().lower().replace("_", "-").replace(" ", "-")
+        
+        presets = {
+            "cloudburst-flash": {
+                "preset_id": "cloudburst-flash",
+                "scenario_name": "Flash Cloudburst",
+                "intensity_mm_hr": 80.0,
+                "duration_hrs": 1.5,
+                "pattern": "cloudburst",
+                "risk_level": "High",
+                "historical_reference": "August 2021 Urban Flash Storm"
+            },
+            "monsoon-surge": {
+                "preset_id": "monsoon-surge",
+                "scenario_name": "Monsoon Atmospheric River",
+                "intensity_mm_hr": 110.0,
+                "duration_hrs": 3.0,
+                "pattern": "monsoon_surge",
+                "risk_level": "Severe",
+                "historical_reference": "December Atmospheric River Surge"
+            },
+            "extreme-100yr": {
+                "preset_id": "extreme-100yr",
+                "scenario_name": "100-Year Design Storm",
+                "intensity_mm_hr": 140.0,
+                "duration_hrs": 2.5,
+                "pattern": "extreme_100yr",
+                "risk_level": "Critical",
+                "historical_reference": "100-Year NOAA IDF Benchmark"
+            },
+            "moderate-rain": {
+                "preset_id": "moderate-rain",
+                "scenario_name": "Moderate Steady Rainfall",
+                "intensity_mm_hr": 35.0,
+                "duration_hrs": 2.0,
+                "pattern": "uniform",
+                "risk_level": "Low",
+                "historical_reference": "Typical Autumn Frontal System"
+            }
+        }
+        
+        matched_key = None
+        if "cloudburst" in norm_name or "flash" in norm_name:
+            matched_key = "cloudburst-flash"
+        elif "monsoon" in norm_name or "river" in norm_name or "surge" in norm_name:
+            matched_key = "monsoon-surge"
+        elif "100" in norm_name or "extreme" in norm_name or "century" in norm_name:
+            matched_key = "extreme-100yr"
+        elif "steady" in norm_name or "moderate" in norm_name or "uniform" in norm_name:
+            matched_key = "moderate-rain"
+        elif norm_name in presets:
+            matched_key = norm_name
+        else:
+            matched_key = "moderate-rain"
+            
+        selected = copy.deepcopy(presets[matched_key])
+        self.current_scenario = selected
+        return selected
+
 
 
     def get_hotspot_alerts(
