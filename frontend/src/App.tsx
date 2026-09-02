@@ -891,8 +891,10 @@ function CurvesTab({ selectedNode }: { selectedNode: string }) {
     fetchTelemetryHistory(selectedNode, 24)
       .then(res => {
         if (mounted) {
-          if (res.status === 'ok' && res.history) {
+          if (res && res.status === 'ok' && Array.isArray(res.history)) {
             setHistory(res.history);
+          } else if (res && Array.isArray(res)) {
+            setHistory(res);
           } else {
             setHistory([]);
           }
@@ -901,7 +903,8 @@ function CurvesTab({ selectedNode }: { selectedNode: string }) {
       })
       .catch(err => {
         if (mounted) {
-          setError(err.message);
+          console.warn('[CurvesTab] Fetch warning:', err);
+          setError(err?.message || 'Failed to fetch telemetry history');
           setLoading(false);
         }
       });
@@ -964,7 +967,7 @@ function CurvesTab({ selectedNode }: { selectedNode: string }) {
     maintainAspectRatio: false,
     plugins: {
       legend: {
-        labels: { color: '#94a3b8' }
+        labels: { color: '#94a3b8', boxWidth: 12, font: { size: 10 } }
       },
       tooltip: {
         mode: 'index' as const,
@@ -974,24 +977,24 @@ function CurvesTab({ selectedNode }: { selectedNode: string }) {
     scales: {
       x: {
         grid: { color: 'rgba(255, 255, 255, 0.1)' },
-        ticks: { color: '#94a3b8', maxTicksLimit: 8 }
+        ticks: { color: '#94a3b8', maxTicksLimit: 6, font: { size: 9 } }
       },
       y: {
         grid: { color: 'rgba(255, 255, 255, 0.1)' },
-        ticks: { color: '#94a3b8' },
-        title: { display: true, text: 'Water Depth (m)', color: '#94a3b8' },
+        ticks: { color: '#94a3b8', font: { size: 9 } },
+        title: { display: true, text: 'Water Depth (m)', color: '#94a3b8', font: { size: 10 } },
         suggestedMin: 0,
       }
     }
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full w-full max-w-full min-w-0 overflow-hidden">
       <div className="alerts-heading">
         <div><span>24-HOUR HYDROGRAPH</span><small>Historical telemetry for {selectedNode}</small></div>
         <b>{history.length} READINGS</b>
       </div>
-      <div className="flex-1 min-h-0 relative p-4">
+      <div className="relative w-full max-w-full min-w-0 h-[380px] p-3 overflow-hidden">
         <Line data={chartData} options={chartOptions} />
       </div>
     </div>
