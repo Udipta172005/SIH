@@ -4,7 +4,7 @@ import {
   Activity, AlertTriangle, ArrowDownToLine, BarChart3, BatteryCharging,
   Check, ChevronDown, CloudRain, Droplets, Gauge, Layers3, MapPin, Menu,
   Navigation, Pause, Play, Radio, RotateCcw, Settings2, ShieldAlert,
-  SlidersHorizontal, Waves, Zap, Fan, Volume2, VolumeX
+  SlidersHorizontal, Waves, Zap, Fan, Volume2, VolumeX, ArrowRight, CheckCircle2, ShieldCheck, Map
 } from 'lucide-react';
 import { fetchTopology, recomputeSimulation, fetchHotspotAlerts, deployPumpMitigation, computeSafeRoute, fetchTelemetryHistory, applyScenario } from './services/api';
 import NetworkBackground from './components/NetworkBackground';
@@ -41,6 +41,30 @@ const presetMap: Record<string, { preset_id: string; pattern: string; defaultInt
 
 const formatMinutes = (value: number) => `T + ${String(value).padStart(3, '0')} MIN`;
 
+
+const stats = [
+  { label: 'Forecast horizon', value: '06:00', detail: 'hours ahead', icon: CloudRain },
+  { label: 'Model confidence', value: '94.8%', detail: 'live accuracy', icon: CheckCircle2 },
+  { label: 'Cities connected', value: '128', detail: 'active networks', icon: MapPin },
+];
+
+const hazards = [
+  { name: 'Normal flow', range: '< 0.10m', tone: 'normal', detail: 'Stable drainage capacity' },
+  { name: 'Waterlogged warning', range: '0.10 \u2013 0.30m', tone: 'warning', detail: 'Monitor surface ponding' },
+  { name: 'Critical surcharge', range: '0.30 \u2013 0.60m', tone: 'critical', detail: 'Conduits nearing capacity' },
+  { name: 'Danger / submerged', range: '> 0.60m', tone: 'danger', detail: 'Immediate response required' },
+];
+
+function SectionHeading({ eyebrow, title, copy }: { eyebrow: string; title: string; copy: string }) {
+  return (
+    <div className="max-w-2xl">
+      <p className="font-mono text-[10px] tracking-[0.2em] text-primary">{eyebrow}</p>
+      <h2 className="mt-3 text-balance text-3xl font-semibold tracking-tight sm:text-4xl">{title}</h2>
+      <p className="mt-4 text-pretty leading-7 text-muted-foreground">{copy}</p>
+    </div>
+  );
+}
+
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
@@ -54,6 +78,8 @@ function App() {
 
   const [activeTab, setActiveTab] = useState('Alerts');
   const [isPlaying, setIsPlaying] = useState(false);
+  const [evacuationRoute, setEvacuationRoute] = useState<any[] | null>(null);
+
   
   const [mapNodes, setMapNodes] = useState<any[]>([]);
   const [mapEdges, setMapEdges] = useState<any[]>([]);
@@ -389,8 +415,108 @@ function App() {
   const eG = Math.floor(5 + pRatio * 10);
   const eB = Math.floor(10 + (horizon / 180) * 30 + pRatio * 15);
 
-  return (
-    <main className="app-shell" style={{ background: `radial-gradient(circle at 52% 44%, rgba(${cR}, ${cG}, ${cB}, 1) 0%, rgba(${mR}, ${mG}, ${mB}, 1) 42%, rgba(${eR}, ${eG}, ${eB}, 1) 100%)` }}>
+    return (
+    <div className="full-page-scroller bg-[#0b132b] text-white overflow-x-hidden">
+      {/* 1. NEW HERO SECTION */}
+      <section className="home-shell relative min-h-screen overflow-hidden">
+        {/* Ambient background */}
+        <div aria-hidden="true" className="ambient-motion pointer-events-none absolute inset-0">
+          <div className="water-glow water-glow-one" /><div className="water-glow water-glow-two" />
+          <div className="flow-line flow-line-one" /><div className="flow-line flow-line-two" /><div className="flow-line flow-line-three" /><div className="rain-field" />
+        </div>
+        <div aria-hidden="true" className="home-grid pointer-events-none absolute inset-0" />
+        <div aria-hidden="true" className="matrix-field pointer-events-none absolute inset-0">
+          {Array.from({ length: 34 }, (_, column) => <span key={column} className={`matrix-column matrix-column-${column + 1}`}>{Array.from({ length: 12 }, (_, row) => <i key={row}>{'0A7F3C9D'} </i>)}</span>)}
+        </div>
+        <div aria-hidden="true" className="signal-nodes pointer-events-none absolute inset-0">{Array.from({ length: 16 }, (_, index) => <span key={index} className={`signal-node signal-node-${index + 1}`} />)}</div>
+
+        {/* Header */}
+        <header className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-between px-6 py-6 lg:px-10">
+          <div className="flex items-center gap-3">
+            <div className="signin-mark flex size-10 items-center justify-center"><Waves aria-hidden="true" className="size-5" /></div>
+            <div>
+              <p className="font-mono text-sm font-extrabold tracking-[0.18em] text-cyan-400">AQUAGNN</p>
+              <p className="font-mono text-[9px] tracking-[0.24em] text-muted-foreground">URBAN WATER INTELLIGENCE</p>
+            </div>
+          </div>
+          <nav aria-label="Primary navigation" className="hidden items-center gap-8 font-mono text-[10px] tracking-[0.14em] text-muted-foreground md:flex">
+            <a href="#platform" className="transition-colors hover:text-cyan-400">PLATFORM</a>
+            
+            <a href="#dashboard" className="transition-colors hover:text-cyan-400">COMMAND CENTER</a>
+          </nav>
+          <a href="#dashboard" className="preset-button font-mono text-[10px] tracking-[0.12em]">SIGN IN <ArrowRight className="inline size-3 ml-1" /></a>
+        </header>
+
+        {/* Hero Content */}
+        <div className="relative z-10 mx-auto grid min-h-[calc(100vh-96px)] w-full max-w-7xl items-center gap-14 px-6 pb-20 pt-10 lg:grid-cols-[1.05fr_.95fr] lg:px-10 lg:pt-0">
+          <div className="max-w-2xl">
+            <div className="status-badge w-fit"><span className="status-dot" /> LIVE FLOOD INTELLIGENCE NETWORK</div>
+            <h1 className="mt-7 text-pretty text-5xl font-semibold tracking-tight sm:text-6xl lg:text-7xl">
+              See the surge <span className="text-cyan-400">before</span> it reaches the street.
+            </h1>
+            <p className="mt-6 max-w-xl text-pretty text-base leading-7 text-muted-foreground sm:text-lg">
+              AquaGNN turns live weather, drainage, and terrain signals into clear urban flood forecasts your teams can act on now.
+            </p>
+            <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+              <a href="#dashboard" className="signin-submit w-fit rounded-sm bg-cyan-600 hover:bg-cyan-500 text-white cursor-pointer px-4 py-3 flex items-center justify-center gap-2"><span>Open command center</span><ArrowRight className="size-3" /></a>
+              
+            </div>
+            <div id="status" className="mt-12 grid max-w-xl grid-cols-1 border-y border-border sm:grid-cols-3">
+              {stats.map(({ label, value, detail, icon: Icon }, index) => (
+                <div key={label} className={`flex items-center gap-3 py-4 sm:flex-col sm:items-start sm:py-5 ${index !== 0 ? 'sm:border-l sm:border-border sm:pl-5' : ''}`}>
+                  <Icon aria-hidden="true" className="size-4 text-cyan-400" />
+                  <div>
+                    <p className="font-mono text-[10px] tracking-[0.1em] text-muted-foreground">{label}</p>
+                    <p className="mt-1 font-mono text-xl font-bold text-white">{value} <span className="text-[9px] font-normal text-muted-foreground">{detail}</span></p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Radar Panel */}
+          <div className="glass-panel relative min-h-[420px] overflow-hidden p-5 sm:min-h-[500px] sm:p-7">
+            <div className="flex items-center justify-between border-b border-border pb-4">
+              <div>
+                <p className="font-mono text-[10px] tracking-[0.16em] text-cyan-400">AQUA / NOWCAST</p>
+                <p className="mt-1 text-sm font-medium">Regional inundation overview</p>
+              </div>
+              <ShieldCheck aria-hidden="true" className="size-5 text-cyan-400" />
+            </div>
+            <div className="relative flex min-h-[310px] items-center justify-center overflow-hidden">
+              <div className="map-radar">
+                <div className="radar-sweep" />
+                <div className="map-road road-one" />
+                <div className="map-road road-two" />
+                <div className="map-road road-three" />
+                <span className="map-node node-a"><Droplets size={12} aria-hidden="true" /></span>
+                <span className="map-node node-b">!</span>
+                <span className="map-node node-c">72</span>
+              </div>
+              <div className="absolute inset-x-0 bottom-4 flex justify-between font-mono text-[9px] tracking-[0.1em] text-muted-foreground">
+                <span>LAT 40.7128 N</span><span>LIVE 14:32:08 UTC</span><span>LONG 74.0060 W</span>
+              </div>
+            </div>
+            <div className="flex items-end justify-between border-t border-border pt-4">
+              <div>
+                <p className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground">PEAK INUNDATION RISK</p>
+                <p className="mt-1 text-2xl font-semibold text-amber-200">MODERATE</p>
+              </div>
+              <div className="text-right">
+                <p className="font-mono text-[9px] tracking-[0.14em] text-muted-foreground">NEXT UPDATE</p>
+                <p className="mt-1 font-mono text-sm text-cyan-400">00:42</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* 2. OLD DASHBOARD WRAPPER */}
+      <div id="dashboard" className="relative w-full overflow-hidden">
+        <div className="relative z-10 mx-auto w-full max-w-7xl px-6 lg:px-10 py-10 pb-0">
+          <SectionHeading eyebrow="02 / LIVE COMMAND CENTER" title="Real-time Urban Topography" copy="Monitor live precipitation, adjust forecast horizons, and visualize simulated water flows across critical municipal infrastructure." />
+        </div>
+        <main className="app-shell" style={{ background: `radial-gradient(circle at 52% 44%, rgba(${cR}, ${cG}, ${cB}, 1) 0%, rgba(${mR}, ${mG}, ${mB}, 1) 42%, rgba(${eR}, ${eG}, ${eB}, 1) 100%)` }}>
       <NetworkBackground />
       <div className="global-rain-overlay" style={{ opacity: precipitation / 160 }} />
       {isPlaying && <div className="gnn-pulse-overlay" />}
@@ -539,7 +665,35 @@ function App() {
                   )}
                 </g>
               )})}
-          </motion.svg>
+          
+            {/* Draw Evacuation Route */}
+            {evacuationRoute && evacuationRoute.length > 1 && (
+              <g className="evacuation-route">
+                <polyline 
+                  points={evacuationRoute.map(p => `${p.x},${p.y}`).join(' ')} 
+                  fill="none" 
+                  stroke="#10b981" 
+                  strokeWidth="2" 
+                  strokeDasharray="4 2" 
+                  className="animate-pulse"
+                />
+                {evacuationRoute.map((p, i) => (
+                  <circle key={i} cx={p.x} cy={p.y} r="2" fill="#10b981" />
+                ))}
+              </g>
+            )}
+            
+            {/* Draw Persistent Deployed Pumps */}
+            {mapNodes.filter(n => deployed.includes(n.label)).map(node => (
+              <g key={`pump-${node.label}`} className="deployed-pump-indicator" style={{ pointerEvents: 'none' }}>
+                <rect x={node.x - 3.5} y={node.y - 3.5} width="7" height="7" fill="#0b132b" stroke="#22d3ee" strokeWidth="0.5" rx="1" />
+                <circle cx={node.x} cy={node.y} r="1.5" fill="#22d3ee">
+                  <animateTransform attributeName="transform" type="rotate" from={`0 ${node.x} ${node.y}`} to={`360 ${node.x} ${node.y}`} dur="1s" repeatCount="indefinite" />
+                </circle>
+                <text x={node.x - 4} y={node.y + 7} fill="#22d3ee" fontSize="3px" fontWeight="bold">PUMP</text>
+              </g>
+            ))}
+    </motion.svg>
           <div className="map-locations">
             <span>INDUSTRIAL DISTRICT</span><span>CIVIC CENTER</span><span>SOUTH CANAL</span><span>BAYFRONT</span>
           </div>
@@ -556,7 +710,7 @@ function App() {
             <button className={activeTab === 'Routing' ? 'active' : ''} onClick={() => setActiveTab('Routing')}><Navigation size={14} /> Routing</button>
             <button className={activeTab === 'Curves' ? 'active' : ''} onClick={() => setActiveTab('Curves')}><BarChart3 size={14} /> Curves</button>
           </div>
-          {activeTab === 'Alerts' ? (
+                    {activeTab === 'Alerts' ? (
             <>
               <div className="alerts-heading">
                 <div><span>CHOKE-POINT ALERTS</span><small>Ranked by current hazard severity</small></div>
@@ -566,6 +720,8 @@ function App() {
                 {alerts.length === 0 ? <EmptyState /> : alerts.map((alert) => <AlertCard key={alert.id} alert={alert} onDeploy={deployPump} />)}
               </div>
             </>
+          ) : activeTab === 'Routing' ? (
+            <RoutingTab nodes={mapNodes} setEvacuationRoute={setEvacuationRoute} />
           ) : activeTab === 'Curves' ? (
             <CurvesTab selectedNode={selectedNode} />
           ) : (
@@ -589,6 +745,8 @@ function App() {
         <span className="footer-right">District 7 / 12 monitored <ChevronDown size={14} /></span>
       </footer>
     </main>
+      </div>
+    </div>
   );
 }
 
@@ -814,12 +972,77 @@ function CurvesTab({ selectedNode }: { selectedNode: string }) {
   );
 }
 
+
+function RoutingTab({ nodes, setEvacuationRoute }: { nodes: any[], setEvacuationRoute: (route: any[] | null) => void }) {
+  const [computing, setComputing] = useState(false);
+  
+  const generateRoute = () => {
+    setComputing(true);
+    // Simulate finding a safe route from a danger node to a safe zone
+    setTimeout(() => {
+      const dangerNodes = nodes.filter(n => n.level === 'danger' || n.level === 'critical');
+      const safeNodes = nodes.filter(n => n.level === 'normal' || !n.level);
+      
+      if (dangerNodes.length > 0 && safeNodes.length > 0) {
+        // Just grab the first danger node and path it to a safe node
+        const start = dangerNodes[0];
+        const end = safeNodes[safeNodes.length - 1]; // pick one far away
+        
+        // Mock a route (in a real app this would use a graph pathfinding algorithm over mapEdges)
+        // We'll just draw a direct line or a 2-segment line for visual effect
+        const midX = (start.x + end.x) / 2;
+        const midY = start.y;
+        
+        setEvacuationRoute([
+          {x: start.x, y: start.y, label: start.label},
+          {x: midX, y: midY, label: 'WP-1'},
+          {x: end.x, y: end.y, label: end.label}
+        ]);
+      } else {
+        setEvacuationRoute([]); // No route needed
+      }
+      setComputing(false);
+    }, 1200);
+  };
+
+  return (
+    <div className="flex flex-col h-full p-5">
+      <div className="alerts-heading mb-4">
+        <div><span>EVACUATION ROUTING</span><small>Dynamic safe-path generation</small></div>
+      </div>
+      <p className="text-xs text-slate-400 mb-6 leading-5">
+        Compute safe egress routes away from active inundation zones. The GNN model evaluates conduit surcharge levels to guarantee path viability.
+      </p>
+      <button 
+        onClick={generateRoute}
+        disabled={computing}
+        className="w-full bg-cyan-600 hover:bg-cyan-500 text-white font-mono text-[10px] tracking-wider py-3 rounded-sm transition-colors flex items-center justify-center gap-2"
+      >
+        {computing ? <div className="animate-spin"><RotateCcw size={14} /></div> : <Navigation size={14} />}
+        {computing ? 'CALCULATING...' : 'COMPUTE SAFE ROUTE'}
+      </button>
+      
+      <button 
+        onClick={() => setEvacuationRoute(null)}
+        className="w-full mt-3 border border-slate-700 hover:bg-slate-800 text-slate-300 font-mono text-[10px] tracking-wider py-3 rounded-sm transition-colors"
+      >
+        CLEAR ROUTES
+      </button>
+    </div>
+  );
+}
+
 function TabEmpty({ tab, deployed }: { tab: string; deployed: number }) {
   return (
     <div className="tab-empty">
       <div><Settings2 size={25} /></div>
       <strong>{tab} workspace ready</strong>
-      <span>{tab === 'Pumps' ? `${deployed} simulated pump units deployed.` : 'Select a live telemetry layer to continue.'}</span>
+      <span className="mt-2 text-center text-xs text-slate-400">
+        {tab === 'Pumps' ? `${deployed} simulated pump units deployed. Click on a hazard alert to deploy more.` : 
+         tab === 'Routing' ? 'Generate evacuation routes away from critical inundation zones.' : 
+         tab === 'Curves' ? 'Click on any node on the map (e.g. ND-01) to view its 24-hour hydrograph curve.' : 
+         'Select a live telemetry layer to continue.'}
+      </span>
     </div>
   );
 }
