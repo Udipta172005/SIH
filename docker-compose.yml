@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  aquagnn:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: aquagnn-app
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+    volumes:
+      - aquagnn_data:/app/backend/data
+
+volumes:
+  aquagnn_data:
