@@ -855,7 +855,7 @@ function AlertCard({ alert, onDeploy }: { alert: AlertItem; onDeploy: (id: strin
 }
 
 function HydroLegend() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   return (
     <div className={`hydro-legend ${collapsed ? 'is-collapsed' : ''}`}>
@@ -864,26 +864,26 @@ function HydroLegend() {
         onClick={() => setCollapsed(!collapsed)}
         title={collapsed ? "Click to expand hazard scale" : "Click to collapse hazard scale"}
       >
-        <div className="flex items-center gap-2">
-          <Waves size={13} className="text-cyan-400" />
-          <span>HYDRO HAZARD SCALE</span>
+        <div className="flex items-center gap-1.5">
+          <Waves size={12} className="text-cyan-400" />
+          <span className="font-mono text-[10px] tracking-wider">HAZARD SCALE</span>
         </div>
         <button 
           type="button" 
-          className="text-slate-400 hover:text-cyan-300 ml-2 font-mono text-xs w-4 h-4 flex items-center justify-center rounded hover:bg-slate-800"
+          className="text-slate-400 hover:text-cyan-300 ml-2 font-mono text-[9px] w-3.5 h-3.5 flex items-center justify-center rounded hover:bg-slate-800"
           aria-label={collapsed ? "Expand legend" : "Collapse legend"}
         >
-          {collapsed ? '+' : '−'}
+          {collapsed ? '▲' : '▼'}
         </button>
       </div>
       {!collapsed && (
-        <>
+        <div className="legend-content pt-1">
           <LegendRow color="#10b981" label="Normal Flow" value="&lt; 0.10m" />
           <LegendRow color="#facc15" label="Waterlogged Warning" value="0.10 - 0.30m" />
           <LegendRow color="#f59e0b" label="Critical Surcharge" value="0.30 - 0.60m" />
           <LegendRow color="#ef4444" label="Danger / Submerged" value="&gt; 0.60m" />
           <div className="legend-flow"><span /> High Conduit Flow (≥85%)</div>
-        </>
+        </div>
       )}
     </div>
   );
