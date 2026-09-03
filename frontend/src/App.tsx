@@ -137,7 +137,7 @@ function App() {
             response: a.recommended_action,
             color: a.severity === 'danger' ? '#ef4444' : a.severity === 'critical' ? '#f59e0b' : '#fbbf24'
         }));
-        setAlerts(mappedAlerts);
+        setAlerts(mappedAlerts.filter(a => !(typeof customPumps !== 'undefined' ? customPumps : deployed).includes(a.id)));
 
       } catch (err) {
         console.error("Failed to fetch initial data", err);
@@ -338,7 +338,7 @@ function App() {
           response: a.recommended_action,
           color: a.severity === 'danger' ? '#ef4444' : a.severity === 'critical' ? '#f59e0b' : '#fbbf24'
         }));
-        setAlerts(mappedAlerts);
+        setAlerts(mappedAlerts.filter(a => !(typeof customPumps !== 'undefined' ? customPumps : deployed).includes(a.id)));
       }
     } catch (err) {
       console.error('Simulation recomputation error:', err);
