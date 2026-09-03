@@ -248,6 +248,18 @@ function App() {
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [recentlyDeployed, setRecentlyDeployed] = useState<string | null>(null);
   const [viewBox, setViewBox] = useState('0 0 100 100');
+  const [showConduits, setShowConduits] = useState(true);
+  const [showNodes, setShowNodes] = useState(true);
+  const [showBeacons, setShowBeacons] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(1);
+
+  useEffect(() => {
+    const w = 100 / zoomLevel;
+    const h = 100 / zoomLevel;
+    const x = 50 - (w / 2);
+    const y = 50 - (h / 2);
+    setViewBox(`${x} ${y} ${w} ${h}`);
+  }, [zoomLevel]);
 
   // Real-time Ambient Rain Sound Synthesizer
   useEffect(() => {
@@ -676,16 +688,19 @@ function App() {
           <div className="tide-mark" style={{ height: `${20 + (alerts.length * 15)}%` }} />
           <div className="map-toolbar">
             <div className="map-mode">
-              <button className="active"><Layers3 size={13} /> Conduits</button>
-              <button><MapPin size={13} /> Nodes</button>
-              <button><Radio size={13} /> Beacons</button>
+              <button className={showConduits ? 'active' : ''} onClick={() => setShowConduits(!showConduits)}><Layers3 size={13} /> Conduits</button>
+              <button className={showNodes ? 'active' : ''} onClick={() => setShowNodes(!showNodes)}><MapPin size={13} /> Nodes</button>
+              <button className={showBeacons ? 'active' : ''} onClick={() => setShowBeacons(!showBeacons)}><Radio size={13} /> Beacons</button>
             </div>
-            <div className="zoom-controls"><button>+</button><button>−</button></div>
+            <div className="zoom-controls">
+              <button onClick={() => setZoomLevel(prev => Math.min(prev + 0.5, 3))}>+</button>
+              <button onClick={() => setZoomLevel(prev => Math.max(prev - 0.5, 1))}>−</button>
+            </div>
           </div>
           <div className="map-grid-pattern" />
           <motion.svg className="topology-map" animate={{ viewBox }} transition={{ duration: 1.2, ease: "easeInOut" }} preserveAspectRatio="none" aria-label="Urban drainage topology map" style={{ cursor: 'crosshair' }}>
             <path d="M2 24 C20 31 16 16 37 24 S65 9 98 20 M1 65 C22 54 32 79 54 58 S74 71 99 57 M18 3 C26 19 20 36 41 47 S58 70 51 98 M76 0 C65 17 76 28 63 44 S82 73 70 100" className="road-line" />
-            {mapEdges.map(([x1, y1, x2, y2], i) => {
+            {showConduits && mapEdges.map(([x1, y1, x2, y2], i) => {
               const speed = (i % 3 === 0) ? 0.8 : (i % 2 === 0) ? 1.5 : 3;
               const colorClass = speed === 3 ? 'stroke-cyan-400' : speed === 1.5 ? 'stroke-amber-400' : 'stroke-red-500';
               return (
@@ -698,7 +713,7 @@ function App() {
                 </g>
               );
             })}
-            {mapNodes.map((node) => {
+            {showNodes && mapNodes.map((node) => {
                 const frameNode = currentFrame?.nodes?.[node.label];
                 const liveLevel = frameNode?.status || node.level || 'normal';
                 const displayDepth = frameNode?.depth_m !== undefined ? frameNode.depth_m : (node.depth_m !== undefined ? node.depth_m : 0.05);
@@ -761,7 +776,19 @@ function App() {
                 <text x={node.x - 4} y={node.y + 7} fill="#22d3ee" fontSize="3px" fontWeight="bold">PUMP</text>
               </g>
             ))}
-    </motion.svg>
+    
+            {/* Draw Beacons */}
+            {showBeacons && mapNodes.filter((_, i) => i % 3 === 0).map((node, i) => (
+              <g key={`beacon-${i}`}>
+                <circle cx={node.x} cy={node.y} r="3" fill="none" stroke="#22d3ee" strokeWidth="0.5">
+                  <animate attributeName="r" values="3; 8; 3" dur="2s" repeatCount="indefinite" />
+                  <animate attributeName="opacity" values="1; 0; 1" dur="2s" repeatCount="indefinite" />
+                </circle>
+                <circle cx={node.x} cy={node.y} r="0.8" fill="#22d3ee" />
+              </g>
+            ))}
+
+          </motion.svg>
           <div className="map-locations">
             <span>INDUSTRIAL DISTRICT</span><span>CIVIC CENTER</span><span>SOUTH CANAL</span><span>BAYFRONT</span>
           </div>
