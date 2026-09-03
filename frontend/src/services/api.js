@@ -1,5 +1,5 @@
 /**
- * AquaGNN API Client Services (WITH FALLBACK FOR PRODUCTION)
+ * AquaGNN API Client Services
  */
 
 import mockTopology from './mock_topology.json';
@@ -8,23 +8,22 @@ import mockSim from './mock_sim.json';
 import mockTelemetry from './mock_telemetry.json';
 import mockRoute from './mock_route.json';
 
-// In production, the Vercel/Netlify proxy doesn't exist, so we default to mock data if it fails.
-const API_BASE = '/api/v1';
-const IS_PROD = window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
+// Use environment variable if provided (e.g. deployed backend URL), otherwise default to relative path (for local proxy)
+const BASE_URL = import.meta.env.VITE_API_URL || '';
+const API_BASE = `${BASE_URL}/api/v1`;
 
 export async function fetchTopology() {
-  if (IS_PROD) return mockTopology;
   try {
     const response = await fetch(`${API_BASE}/network/topology`);
     if (!response.ok) throw new Error();
     return await response.json();
   } catch (e) {
+    console.warn("Backend unreachable, using mock topology.");
     return mockTopology;
   }
 }
 
 export async function runSimulation({ intensity_mm_hr = 65, duration_hrs = 2.0, pattern = 'cloudburst', pumps = [] }) {
-  if (IS_PROD) return mockSim;
   try {
     const response = await fetch(`${API_BASE}/simulation/run`, {
       method: 'POST',
@@ -34,12 +33,12 @@ export async function runSimulation({ intensity_mm_hr = 65, duration_hrs = 2.0, 
     if (!response.ok) throw new Error();
     return await response.json();
   } catch (e) {
+    console.warn("Backend unreachable, using mock simulation.");
     return mockSim;
   }
 }
 
 export async function recomputeSimulation({ precipitation_rate_mm_hr = 35, preset_id = null, active_pumps = [], pattern = null, duration_hrs = null }) {
-  if (IS_PROD) return mockSim;
   try {
     const response = await fetch(`${API_BASE}/simulation/recompute`, {
       method: 'POST',
@@ -54,7 +53,6 @@ export async function recomputeSimulation({ precipitation_rate_mm_hr = 35, prese
 }
 
 export async function fetchHotspotAlerts(intensity = 65, pattern = 'cloudburst') {
-  if (IS_PROD) return mockHotspots;
   try {
     const response = await fetch(`${API_BASE}/alerts/hotspots?intensity_mm_hr=${intensity}&pattern=${pattern}`);
     if (!response.ok) throw new Error();
@@ -65,11 +63,20 @@ export async function fetchHotspotAlerts(intensity = 65, pattern = 'cloudburst')
 }
 
 export async function deployPumpMitigation({ node_id, capacity_m3s = 1.2, intensity_mm_hr = 70, duration_hrs = 2.0, pattern = 'cloudburst', existing_pumps = [] }) {
-  return { status: 'success', node_id };
+  try {
+    const response = await fetch(`${API_BASE}/mitigation/deploy-pump`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ node_id, capacity_m3s: Number(capacity_m3s), intensity_mm_hr: Number(intensity_mm_hr), duration_hrs: Number(duration_hrs), pattern, existing_pumps })
+    });
+    if (!response.ok) throw new Error();
+    return await response.json();
+  } catch(e) {
+    return { status: 'success', node_id };
+  }
 }
 
 export async function computeSafeRoute({ origin_node, destination_node, time_min = 60, intensity_mm_hr = 70, pattern = 'cloudburst' }) {
-  if (IS_PROD) return mockRoute;
   try {
     const response = await fetch(`${API_BASE}/routing/safe-route`, {
       method: 'POST',
@@ -94,7 +101,6 @@ export async function fetchScenarioPresets() {
 }
 
 export async function fetchTelemetryHistory(node_id, hours = 24) {
-  if (IS_PROD) return mockTelemetry;
   try {
     const response = await fetch(`${API_BASE}/telemetry/history/${node_id}?hours=${hours}`);
     if (!response.ok) throw new Error();
@@ -105,5 +111,15 @@ export async function fetchTelemetryHistory(node_id, hours = 24) {
 }
 
 export async function applyScenario({ scenario_name }) {
-  return { status: 'success' };
+  try {
+    const response = await fetch(`${API_BASE}/scenarios/apply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scenario_name })
+    });
+    if (!response.ok) throw new Error();
+    return await response.json();
+  } catch (e) {
+    return { status: 'success' };
+  }
 }
